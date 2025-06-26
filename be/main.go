@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,6 +44,39 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
+}
+
+// 生成友好的用户ID
+func generateFriendlyUID() string {
+	// 使用大写字母和数字，避免容易混淆的字符
+	chars := "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+	rand.Seed(time.Now().UnixNano())
+
+	var result strings.Builder
+	for i := 0; i < 6; i++ {
+		result.WriteByte(chars[rand.Intn(len(chars))])
+	}
+
+	return result.String()
+}
+
+// 检查UID是否已存在
+func (h *Hub) isUIDExists(uid string) bool {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+	_, exists := h.userClients[uid]
+	return exists
+}
+
+// 生成唯一的友好UID
+func (h *Hub) generateUniqueUID() string {
+	for {
+		uid := generateFriendlyUID()
+		if !h.isUIDExists(uid) {
+			return uid
+		}
+	}
 }
 
 func newHub() *Hub {
@@ -173,7 +208,7 @@ func (h *Hub) readPump(client *Client) {
 	}
 
 	if userID == "" {
-		userID = uuid.New().String()
+		userID = h.generateUniqueUID()
 		isNewUser = true
 		log.Printf("Generated new UID for user: %s", userID)
 	} else {

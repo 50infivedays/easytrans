@@ -119,14 +119,18 @@ function App() {
         <Card>
           <CardHeader>
             <CardTitle>我的用户ID (UID)</CardTitle>
-            <CardDescription>分享这个UID给其他人以建立连接</CardDescription>
+            <CardDescription>分享这个6位代码给其他人以建立连接</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2">
               <Input
-                value={uid || '正在获取...'}
+                value={uid || '获取中...'}
                 readOnly
-                className="font-mono"
+                className="font-mono text-lg font-bold text-center tracking-widest"
+                style={{
+                  fontSize: '24px',
+                  letterSpacing: '4px',
+                }}
               />
               <Button
                 onClick={copyToClipboard}
@@ -152,11 +156,12 @@ function App() {
             <div className="space-y-3">
               <div className="flex gap-2">
                 <Input
-                  placeholder="输入对方的UID"
-                  value={targetId}
-                  onChange={(e) => setTargetId(e.target.value)}
+                  placeholder="输入对方的UID (例如: ABC123)"
+                  value={targetId.toUpperCase()}
+                  onChange={(e) => setTargetId(e.target.value.toUpperCase())}
                   onKeyPress={(e) => e.key === 'Enter' && handleConnect()}
                   className="font-mono target-uid-input"
+                  maxLength={6}
                 />
                 <Button
                   onClick={handleConnect}
