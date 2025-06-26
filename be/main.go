@@ -61,7 +61,7 @@ func (h *Hub) run() {
 			h.mutex.Lock()
 			// 如果该用户已有连接，关闭旧连接
 			if oldClient, exists := h.userClients[client.UID]; exists {
-				log.Printf("User %s already has connection %s, closing old connection", client.UID, oldClient.ID)
+				log.Printf("⚠️  User %s already has connection %s, closing old connection", client.UID, oldClient.ID)
 				close(oldClient.Send)
 				delete(h.clients, oldClient.ID)
 			}
@@ -69,9 +69,13 @@ func (h *Hub) run() {
 			// 注册新连接
 			h.clients[client.ID] = client
 			h.userClients[client.UID] = client
-			h.mutex.Unlock()
 
-			log.Printf("Client %s (User %s) connected", client.ID, client.UID)
+			log.Printf("✅ Client %s (User %s) connected. Total users: %d", client.ID, client.UID, len(h.userClients))
+			log.Printf("📋 All connected users:")
+			for uid := range h.userClients {
+				log.Printf("   - %s", uid)
+			}
+			h.mutex.Unlock()
 
 		case client := <-h.unregister:
 			h.mutex.Lock()
@@ -79,9 +83,11 @@ func (h *Hub) run() {
 				delete(h.clients, client.ID)
 				delete(h.userClients, client.UID)
 				close(client.Send)
+				log.Printf("❌ Client %s (User %s) disconnected. Total users: %d", client.ID, client.UID, len(h.userClients))
+			} else {
+				log.Printf("⚠️  Attempted to unregister non-existent client %s", client.ID)
 			}
 			h.mutex.Unlock()
-			log.Printf("Client %s (User %s) disconnected", client.ID, client.UID)
 
 		case message := <-h.broadcast:
 			h.mutex.RLock()
@@ -207,10 +213,12 @@ func (h *Hub) readPump(client *Client) {
 
 		var msg Message
 		if err := json.Unmarshal(messageBytes, &msg); err != nil {
-			log.Printf("JSON unmarshal error: %v", err)
+			log.Printf("❌ JSON unmarshal error: %v", err)
+			log.Printf("❌ Raw message: %s", string(messageBytes))
 			continue
 		}
 
+		log.Printf("📨 Received message from client %s (UID: %s): Type=%s, To=%s", client.ID, client.UID, msg.Type, msg.To)
 		msg.From = client.UID
 		h.handleMessage(&msg)
 	}
@@ -232,20 +240,17 @@ func (h *Hub) writePump(client *Client) {
 				return
 			}
 
-			w, err := client.Conn.NextWriter(websocket.TextMessage)
-			if err != nil {
+			// 发送第一条消息
+			if err := client.Conn.WriteMessage(websocket.TextMessage, message); err != nil {
 				return
 			}
-			w.Write(message)
 
+			// 如果还有待发送的消息，分别发送每一条
 			n := len(client.Send)
 			for i := 0; i < n; i++ {
-				w.Write([]byte{'\n'})
-				w.Write(<-client.Send)
-			}
-
-			if err := w.Close(); err != nil {
-				return
+				if err := client.Conn.WriteMessage(websocket.TextMessage, <-client.Send); err != nil {
+					return
+				}
 			}
 
 		case <-ticker.C:
@@ -258,30 +263,46 @@ func (h *Hub) writePump(client *Client) {
 }
 
 func (h *Hub) handleMessage(msg *Message) {
+	log.Printf("🔄 Handling message: Type=%s, From=%s, To=%s", msg.Type, msg.From, msg.To)
+
 	switch msg.Type {
 	case "offer", "answer", "ice-candidate":
+		log.Printf("📡 Relaying signaling message: %s from %s to %s", msg.Type, msg.From, msg.To)
 		h.relaySignaling(msg)
 	case "ping":
+		log.Printf("🏓 Ping received from %s, sending pong", msg.From)
 		h.sendToClient(msg.From, Message{
 			Type: "pong",
 		})
 	default:
-		log.Printf("Unknown message type: %s", msg.Type)
+		log.Printf("❌ Unknown message type: %s from %s", msg.Type, msg.From)
 	}
 }
 
 func (h *Hub) relaySignaling(msg *Message) {
+	log.Printf("🔄 relaySignaling: Processing %s message", msg.Type)
+
 	if msg.To == "" {
-		log.Println("No target specified for signaling message")
+		log.Printf("❌ No target specified for signaling message from %s", msg.From)
 		return
 	}
 
 	h.mutex.RLock()
 	targetClient, exists := h.userClients[msg.To] // 使用UID查找用户
 	_, senderExists := h.userClients[msg.From]
+
+	// 打印当前在线用户列表
+	log.Printf("📋 Current online users: %d", len(h.userClients))
+	for uid := range h.userClients {
+		log.Printf("   - User: %s", uid)
+	}
 	h.mutex.RUnlock()
 
+	log.Printf("🔍 Looking for target user: %s, exists: %v", msg.To, exists)
+	log.Printf("🔍 Sender exists: %v", senderExists)
+
 	if !exists {
+		log.Printf("❌ Target user %s not found, sending error to sender %s", msg.To, msg.From)
 		// 发送错误消息给发送者
 		if senderExists {
 			h.sendToUser(msg.From, Message{
@@ -302,13 +323,16 @@ func (h *Hub) relaySignaling(msg *Message) {
 
 	data, err := json.Marshal(response)
 	if err != nil {
-		log.Printf("JSON marshal error: %v", err)
+		log.Printf("❌ JSON marshal error: %v", err)
 		return
 	}
 
+	log.Printf("✅ Sending %s message from %s to %s", msg.Type, msg.From, msg.To)
 	select {
 	case targetClient.Send <- data:
+		log.Printf("✅ Message successfully queued for delivery to %s", msg.To)
 	default:
+		log.Printf("❌ Failed to queue message for %s (channel full or closed)", msg.To)
 		// 客户端连接已关闭
 		if senderExists {
 			h.sendToUser(msg.From, Message{
@@ -382,6 +406,22 @@ func main() {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
+	})
+
+	// 调试端点：显示当前连接的用户
+	mux.HandleFunc("/debug/users", func(w http.ResponseWriter, r *http.Request) {
+		hub.mutex.RLock()
+		users := make([]string, 0, len(hub.userClients))
+		for uid := range hub.userClients {
+			users = append(users, uid)
+		}
+		hub.mutex.RUnlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"totalUsers": len(users),
+			"users":      users,
+		})
 	})
 
 	handler := c.Handler(mux)

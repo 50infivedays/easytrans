@@ -156,7 +156,7 @@ function App() {
                   value={targetId}
                   onChange={(e) => setTargetId(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleConnect()}
-                  className="font-mono"
+                  className="font-mono target-uid-input"
                 />
                 <Button
                   onClick={handleConnect}

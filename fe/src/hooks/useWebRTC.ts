@@ -216,9 +216,8 @@ export const useWebRTC = (
 
     // Handle signaling messages
     useEffect(() => {
-        if (!lastSignalingMessage || !pcRef.current) return;
+        if (!lastSignalingMessage) return;
 
-        const pc = pcRef.current;
         const message = lastSignalingMessage;
 
         const handleSignalingMessage = async () => {
@@ -229,10 +228,14 @@ export const useWebRTC = (
                         // Store the sender as our target for ICE candidates
                         currentTargetRef.current = message.from!;
 
-                        if (!pcRef.current) {
-                            pcRef.current = createPeerConnection();
+                        // Always create a new peer connection for incoming offers
+                        if (pcRef.current) {
+                            pcRef.current.close();
                         }
+                        pcRef.current = createPeerConnection();
+                        const pc = pcRef.current;
 
+                        console.log('Setting remote description from offer...');
                         await pc.setRemoteDescription(new RTCSessionDescription(message.data));
 
                         // Process pending ICE candidates
@@ -241,6 +244,7 @@ export const useWebRTC = (
                         }
                         pendingICECandidatesRef.current = [];
 
+                        console.log('Creating answer...');
                         const answer = await pc.createAnswer();
                         await pc.setLocalDescription(answer);
 
@@ -254,20 +258,33 @@ export const useWebRTC = (
 
                     case 'answer':
                         console.log('Received answer from:', message.from);
-                        await pc.setRemoteDescription(new RTCSessionDescription(message.data));
+                        if (!pcRef.current) {
+                            console.error('No peer connection available for answer');
+                            return;
+                        }
+
+                        console.log('Setting remote description from answer...');
+                        await pcRef.current.setRemoteDescription(new RTCSessionDescription(message.data));
 
                         // Process pending ICE candidates
                         for (const candidate of pendingICECandidatesRef.current) {
-                            await pc.addIceCandidate(candidate);
+                            await pcRef.current.addIceCandidate(candidate);
                         }
                         pendingICECandidatesRef.current = [];
                         break;
 
                     case 'ice-candidate':
                         console.log('Received ICE candidate from:', message.from);
-                        if (pc.remoteDescription) {
-                            await pc.addIceCandidate(new RTCIceCandidate(message.data));
+                        if (!pcRef.current) {
+                            console.error('No peer connection available for ICE candidate');
+                            return;
+                        }
+
+                        if (pcRef.current.remoteDescription) {
+                            console.log('Adding ICE candidate immediately');
+                            await pcRef.current.addIceCandidate(new RTCIceCandidate(message.data));
                         } else {
+                            console.log('Storing ICE candidate for later');
                             // Store ICE candidate for later
                             pendingICECandidatesRef.current.push(new RTCIceCandidate(message.data));
                         }
@@ -275,6 +292,8 @@ export const useWebRTC = (
                 }
             } catch (error) {
                 console.error('Error handling signaling message:', error);
+                console.error('Message type:', message.type);
+                console.error('Message data:', message.data);
             }
         };
 
