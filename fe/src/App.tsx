@@ -6,7 +6,19 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useWebRTC } from './hooks/useWebRTC';
 import { Send, Copy, FileUp, Users, Wifi, WifiOff } from 'lucide-react';
 
-const WEBSOCKET_URL = 'ws://localhost:8080/ws';
+// 根据环境自动选择WebSocket URL
+const getWebSocketURL = () => {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const isProduction = window.location.hostname !== 'localhost';
+
+  if (isProduction) {
+    return 'wss://api.eztrans.online/ws';
+  } else {
+    return 'ws://localhost:8080/ws';
+  }
+};
+
+const WEBSOCKET_URL = getWebSocketURL();
 
 function App() {
   const [targetId, setTargetId] = useState('');
