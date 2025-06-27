@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -464,7 +465,17 @@ func main() {
 
 	handler := c.Handler(mux)
 
-	port := ":8080"
+	// 从环境变量读取端口号，默认为8080
+	port := os.Getenv("EZTRANS_PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	// 确保端口号格式正确
+	if port[0] != ':' {
+		port = ":" + port
+	}
+
 	fmt.Printf("Server starting on port %s\n", port)
 	log.Fatal(http.ListenAndServe(port, handler))
 }
