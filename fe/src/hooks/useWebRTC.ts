@@ -42,12 +42,33 @@ export const useWebRTC = (
     const pendingICECandidatesRef = useRef<RTCIceCandidate[]>([]);
     const currentTargetRef = useRef<string | null>(null);
 
-    // WebRTC configuration
+    // WebRTC configuration with multiple ICE servers for better NAT traversal
     const config: RTCConfiguration = {
         iceServers: [
+            // Google STUN servers
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+
+            // Additional STUN servers from different providers
+            { urls: 'stun:stunserver.org' },
+            { urls: 'stun:stun.voip.blackberry.com:3478' },
+
+            // Free TURN servers (limited bandwidth)
+            {
+                urls: 'turn:openrelay.metered.ca:80',
+                username: 'openrelayproject',
+                credential: 'openrelayproject',
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443',
+                username: 'openrelayproject',
+                credential: 'openrelayproject',
+            },
         ],
+        iceCandidatePoolSize: 10, // Generate more ICE candidates
     };
 
     const setupDataChannel = useCallback((channel: RTCDataChannel) => {
@@ -91,12 +112,40 @@ export const useWebRTC = (
 
         pc.onicecandidate = (event) => {
             if (event.candidate && currentTargetRef.current) {
+                // Log ICE candidate for debugging NAT traversal
+                console.log('ICE Candidate:', {
+                    type: event.candidate.type,
+                    address: event.candidate.address,
+                    port: event.candidate.port,
+                    protocol: event.candidate.protocol,
+                    candidate: event.candidate.candidate
+                });
+
                 sendSignalingMessage({
                     type: 'ice-candidate',
                     to: currentTargetRef.current,
                     data: event.candidate,
                 });
             }
+        };
+
+        pc.onicecandidateerror = (event) => {
+            console.error('ICE candidate error:', event);
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            console.log('ICE connection state:', pc.iceConnectionState);
+
+            // Additional debugging for connection failures
+            if (pc.iceConnectionState === 'failed') {
+                console.warn('ICE connection failed - this often indicates NAT/firewall issues');
+                console.log('Attempting ICE restart...');
+                pc.restartIce();
+            }
+        };
+
+        pc.onicegatheringstatechange = () => {
+            console.log('ICE gathering state:', pc.iceGatheringState);
         };
 
         pc.onconnectionstatechange = () => {
