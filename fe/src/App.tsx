@@ -109,7 +109,7 @@ function App() {
         {/* Header */}
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">EasyTrans</h1>
-          <p className="text-gray-600">基于WebRTC的点对点文件和文本传输</p>
+          <p className="text-gray-600">基于WebRTC的隐私安全的文件和文本传输</p>
         </div>
 
         {/* Connection Status */}
