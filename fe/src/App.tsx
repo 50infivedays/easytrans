@@ -1,10 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useWebRTC } from './hooks/useWebRTC';
 import { Send, Copy, FileUp, Users, Wifi, WifiOff, Download, CheckCircle, AlertCircle } from 'lucide-react';
+import LanguageSwitcher from './components/LanguageSwitcher';
+import { translations, getBrowserLanguage, formatMessage, Translations } from './i18n/translations';
 
 // 根据环境自动选择WebSocket URL
 const getWebSocketURL = () => {
@@ -23,7 +25,25 @@ const WEBSOCKET_URL = getWebSocketURL();
 function App() {
   const [targetId, setTargetId] = useState('');
   const [messageInput, setMessageInput] = useState('');
+  const [language, setLanguage] = useState<string>('zh');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 初始化语言设置
+  useEffect(() => {
+    const savedLanguage = localStorage.getItem('easytrans-language');
+    if (savedLanguage) {
+      setLanguage(savedLanguage);
+    } else {
+      const browserLanguage = getBrowserLanguage();
+      setLanguage(browserLanguage);
+    }
+  }, []);
+
+  // 保存语言设置到localStorage
+  const handleLanguageChange = (newLanguage: string) => {
+    setLanguage(newLanguage);
+    localStorage.setItem('easytrans-language', newLanguage);
+  };
 
   const { isConnected: wsConnected, uid, sendMessage: sendWsMessage, lastMessage, reconnect } = useWebSocket(WEBSOCKET_URL);
 
@@ -36,6 +56,9 @@ function App() {
     sendFile,
     disconnect: disconnectRTC
   } = useWebRTC(sendWsMessage, lastMessage);
+
+  // 获取当前语言的翻译
+  const t: Translations = translations[language] || translations.en;
 
   const handleConnect = () => {
     console.log('Connect button clicked');
@@ -72,7 +95,7 @@ function App() {
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('zh-CN', {
+    return date.toLocaleTimeString(language === 'zh' ? 'zh-CN' : 'en-US', {
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -104,48 +127,54 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-gray-50 p-4 relative">
+      {/* Language Switcher */}
+      <LanguageSwitcher
+        currentLanguage={language}
+        onLanguageChange={handleLanguageChange}
+      />
+
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">EasyTrans</h1>
-          <p className="text-gray-600 mb-4">基于WebRTC的隐私安全的文件和文本传输</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t.title}</h1>
+          <p className="text-gray-600 mb-4">{t.subtitle}</p>
 
           {/* 功能特性展示 */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center p-3 bg-blue-50 rounded-lg">
-              <div className="text-blue-600 font-semibold text-sm">🔒 隐私安全</div>
-              <div className="text-xs text-gray-600">端到端加密</div>
+              <div className="text-blue-600 font-semibold text-sm">{t.features.privacy}</div>
+              <div className="text-xs text-gray-600">{t.features.privacyDesc}</div>
             </div>
             <div className="text-center p-3 bg-green-50 rounded-lg">
-              <div className="text-green-600 font-semibold text-sm">📁 文件传输</div>
-              <div className="text-xs text-gray-600">P2P直连传输</div>
+              <div className="text-green-600 font-semibold text-sm">{t.features.fileTransfer}</div>
+              <div className="text-xs text-gray-600">{t.features.fileTransferDesc}</div>
             </div>
             <div className="text-center p-3 bg-purple-50 rounded-lg">
-              <div className="text-purple-600 font-semibold text-sm">💬 实时聊天</div>
-              <div className="text-xs text-gray-600">消息即时发送</div>
+              <div className="text-purple-600 font-semibold text-sm">{t.features.chat}</div>
+              <div className="text-xs text-gray-600">{t.features.chatDesc}</div>
             </div>
             <div className="text-center p-3 bg-orange-50 rounded-lg">
-              <div className="text-orange-600 font-semibold text-sm">⚡ 快速传输</div>
-              <div className="text-xs text-gray-600">无需服务器中转</div>
+              <div className="text-orange-600 font-semibold text-sm">{t.features.fastTransfer}</div>
+              <div className="text-xs text-gray-600">{t.features.fastTransferDesc}</div>
             </div>
           </div>
 
           {/* 安全特性说明 */}
           <div className="bg-gray-50 p-4 rounded-lg mb-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">🔐 隐私安全特性</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">{t.securityFeatures.title}</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <span className="text-green-500">✓</span>
-                <span>端到端加密保护</span>
+                <span>{t.securityFeatures.endToEnd}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-green-500">✓</span>
-                <span>P2P直连，无服务器中转</span>
+                <span>{t.securityFeatures.p2pDirect}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-green-500">✓</span>
-                <span>数据不经过第三方服务器</span>
+                <span>{t.securityFeatures.noServer}</span>
               </div>
             </div>
           </div>
@@ -160,16 +189,16 @@ function App() {
               ) : (
                 <WifiOff className="w-5 h-5 text-red-500" />
               )}
-              连接状态
+              {t.connectionStatus.title}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-gray-600">WebSocket连接:</p>
+                <p className="text-sm text-gray-600">{t.connectionStatus.websocket}</p>
                 <div className="flex items-center gap-2">
                   <p className={`font-medium ${wsConnected ? 'text-green-600' : 'text-red-600'}`}>
-                    {wsConnected ? '已连接' : '未连接'}
+                    {wsConnected ? t.connectionStatus.connected : t.connectionStatus.disconnected}
                   </p>
                   {!wsConnected && (
                     <Button
@@ -177,15 +206,15 @@ function App() {
                       size="sm"
                       variant="outline"
                     >
-                      重连
+                      {t.connectionStatus.reconnect}
                     </Button>
                   )}
                 </div>
               </div>
               <div>
-                <p className="text-sm text-gray-600">WebRTC连接:</p>
+                <p className="text-sm text-gray-600">{t.connectionStatus.webrtc}</p>
                 <p className={`font-medium ${rtcConnected ? 'text-green-600' : 'text-red-600'}`}>
-                  {rtcConnected ? '已连接' : '未连接'}
+                  {rtcConnected ? t.connectionStatus.connected : t.connectionStatus.disconnected}
                 </p>
               </div>
             </div>
@@ -195,13 +224,13 @@ function App() {
         {/* My UID */}
         <Card>
           <CardHeader>
-            <CardTitle>我的用户ID (UID)</CardTitle>
-            <CardDescription>分享这个6位代码给其他人以建立连接</CardDescription>
+            <CardTitle>{t.myUid.title}</CardTitle>
+            <CardDescription>{t.myUid.description}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2">
               <Input
-                value={uid || '获取中...'}
+                value={uid || t.myUid.getting}
                 readOnly
                 className="font-mono text-lg font-bold text-center tracking-widest"
                 style={{
@@ -225,15 +254,15 @@ function App() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
-              连接到对方
+              {t.connectToPeer.title}
             </CardTitle>
-            <CardDescription>输入对方的UID来建立P2P连接</CardDescription>
+            <CardDescription>{t.connectToPeer.description}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               <div className="flex gap-2">
                 <Input
-                  placeholder="输入对方的UID (例如: ABC123)"
+                  placeholder={t.connectToPeer.placeholder}
                   value={targetId.toUpperCase()}
                   onChange={(e) => setTargetId(e.target.value.toUpperCase())}
                   onKeyPress={(e) => e.key === 'Enter' && handleConnect()}
@@ -244,22 +273,24 @@ function App() {
                   onClick={handleConnect}
                   disabled={!targetId.trim() || !wsConnected}
                 >
-                  {!wsConnected ? '等待连接...' : !targetId.trim() ? '请输入UID' : '连接'}
+                  {!wsConnected ? t.connectToPeer.waiting : !targetId.trim() ? t.connectToPeer.enterUid : t.connectToPeer.connect}
                 </Button>
                 {rtcConnected && (
                   <Button
                     onClick={disconnectRTC}
                     variant="destructive"
                   >
-                    断开
+                    {t.connectToPeer.disconnect}
                   </Button>
                 )}
               </div>
               {/* Debug info */}
               <div className="text-xs text-gray-500">
-                <p>调试信息: WebSocket: {wsConnected ? '✓' : '✗'},
-                  目标ID: {targetId || '未输入'},
-                  按钮状态: {(!targetId.trim() || !wsConnected) ? '禁用' : '启用'}</p>
+                <p>{formatMessage(t.connectToPeer.debugInfo, {
+                  wsStatus: wsConnected ? '✓' : '✗',
+                  targetId: targetId || (language === 'zh' ? '未输入' : 'Not entered'),
+                  buttonStatus: (!targetId.trim() || !wsConnected) ? (language === 'zh' ? '禁用' : 'Disabled') : (language === 'zh' ? '启用' : 'Enabled')
+                })}</p>
               </div>
             </div>
           </CardContent>
@@ -270,15 +301,15 @@ function App() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <span>💬 实时聊天 & 📁 文件传输</span>
+                <span>{t.chat.title}</span>
               </CardTitle>
-              <CardDescription>支持端到端加密的文本消息发送和P2P文件传输</CardDescription>
+              <CardDescription>{t.chat.description}</CardDescription>
             </CardHeader>
             <CardContent>
               {/* Messages */}
               <div className="h-64 border rounded-lg p-4 mb-4 overflow-y-auto bg-white">
                 {messages.length === 0 ? (
-                  <p className="text-gray-500 text-center">暂无消息...</p>
+                  <p className="text-gray-500 text-center">{t.chat.noMessages}</p>
                 ) : (
                   messages.map((msg) => (
                     <div
@@ -294,7 +325,7 @@ function App() {
                         <p className="text-sm">{msg.text}</p>
                         {msg.type === 'file' && (
                           <p className="text-xs opacity-75 mt-1">
-                            大小: {((msg.fileSize || 0) / 1024).toFixed(1)} KB
+                            {formatMessage(t.chat.fileSize, { size: ((msg.fileSize || 0) / 1024).toFixed(1) })}
                           </p>
                         )}
                         <p className="text-xs opacity-75 mt-1">
@@ -309,7 +340,7 @@ function App() {
               {/* File Transfers */}
               {fileTransfers.length > 0 && (
                 <div className="mb-4">
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">文件传输</h3>
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">{t.fileTransfer.title}</h3>
                   <div className="space-y-2">
                     {fileTransfers.map((transfer) => (
                       <div key={transfer.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
@@ -330,7 +361,7 @@ function App() {
                             </span>
                           </div>
                           <p className="text-xs text-gray-500">
-                            {((transfer.fileSize || 0) / 1024).toFixed(1)} KB
+                            {formatMessage(t.fileTransfer.size, { size: ((transfer.fileSize || 0) / 1024).toFixed(1) })}
                           </p>
                         </div>
                         {transfer.status === 'completed' && transfer.data && (
@@ -351,7 +382,7 @@ function App() {
               {/* Input Area */}
               <div className="flex gap-2">
                 <Input
-                  placeholder="输入消息..."
+                  placeholder={t.chat.placeholder}
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
@@ -380,64 +411,62 @@ function App() {
         {/* Instructions */}
         <Card>
           <CardHeader>
-            <CardTitle>📖 使用说明</CardTitle>
-            <CardDescription>快速开始使用EasyTrans进行隐私安全的文件传输和聊天</CardDescription>
+            <CardTitle>{t.instructions.title}</CardTitle>
+            <CardDescription>{t.instructions.description}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
               {/* 基本使用步骤 */}
               <div>
-                <h3 className="font-semibold text-gray-800 mb-3">🚀 快速开始</h3>
+                <h3 className="font-semibold text-gray-800 mb-3">{t.instructions.quickStart}</h3>
                 <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600">
-                  <li>确保WebSocket连接正常（显示"已连接"）</li>
-                  <li>复制你的UID并分享给对方</li>
-                  <li>输入对方的UID并点击"连接"按钮</li>
-                  <li>连接成功后即可开始发送消息和文件</li>
+                  {t.instructions.steps.map((step, index) => (
+                    <li key={index}>{step}</li>
+                  ))}
                 </ol>
               </div>
 
               {/* 功能特性说明 */}
               <div>
-                <h3 className="font-semibold text-gray-800 mb-3">✨ 核心功能</h3>
+                <h3 className="font-semibold text-gray-800 mb-3">{t.instructions.coreFeatures}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <span className="text-blue-500">💬</span>
-                      <span className="text-sm font-medium">实时聊天</span>
+                      <span className="text-sm font-medium">{t.instructions.features.realtimeChat}</span>
                     </div>
-                    <p className="text-xs text-gray-600 ml-6">支持文本消息即时发送，端到端加密保护</p>
+                    <p className="text-xs text-gray-600 ml-6">{t.instructions.features.realtimeChatDesc}</p>
 
                     <div className="flex items-center gap-2">
                       <span className="text-green-500">📁</span>
-                      <span className="text-sm font-medium">文件传输</span>
+                      <span className="text-sm font-medium">{t.instructions.features.fileTransfer}</span>
                     </div>
-                    <p className="text-xs text-gray-600 ml-6">P2P直连传输，支持大文件，显示传输进度</p>
+                    <p className="text-xs text-gray-600 ml-6">{t.instructions.features.fileTransferDesc}</p>
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <span className="text-purple-500">🔒</span>
-                      <span className="text-sm font-medium">隐私安全</span>
+                      <span className="text-sm font-medium">{t.instructions.features.privacy}</span>
                     </div>
-                    <p className="text-xs text-gray-600 ml-6">WebRTC技术，数据不经过第三方服务器</p>
+                    <p className="text-xs text-gray-600 ml-6">{t.instructions.features.privacyDesc}</p>
 
                     <div className="flex items-center gap-2">
                       <span className="text-orange-500">⚡</span>
-                      <span className="text-sm font-medium">快速传输</span>
+                      <span className="text-sm font-medium">{t.instructions.features.fastTransfer}</span>
                     </div>
-                    <p className="text-xs text-gray-600 ml-6">无需服务器中转，传输速度更快</p>
+                    <p className="text-xs text-gray-600 ml-6">{t.instructions.features.fastTransferDesc}</p>
                   </div>
                 </div>
               </div>
 
               {/* 安全说明 */}
               <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-blue-800 mb-2">🔐 安全说明</h3>
+                <h3 className="font-semibold text-blue-800 mb-2">{t.instructions.security}</h3>
                 <div className="text-sm text-blue-700 space-y-1">
-                  <p>• 所有数据传输均采用端到端加密</p>
-                  <p>• 文件传输通过WebRTC数据通道，不经过服务器</p>
-                  <p>• 聊天消息实时加密传输，保护隐私安全</p>
-                  <p>• 支持任意大小文件传输，无限制</p>
+                  {t.instructions.securityPoints.map((point, index) => (
+                    <p key={index}>• {point}</p>
+                  ))}
                 </div>
               </div>
             </div>
