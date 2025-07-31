@@ -54,8 +54,10 @@ export const useWebRTC = (
 
         const testConfig: RTCConfiguration = {
             iceServers: [
+                { urls: 'stun:stun.cloudflare.com:3478' },
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun.stunprotocol.org:3478' },
+                { urls: 'stun:stun.voipbuster.com' },
+                { urls: 'stun:stun.voipstunt.com' },
             ],
             iceCandidatePoolSize: 5,
         };
@@ -269,44 +271,15 @@ export const useWebRTC = (
         // Create WebRTC configuration
         const rtcConfig: RTCConfiguration = {
             iceServers: [
-                // Google STUN servers (primary)
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' },
+                // Cloudflare STUN 服务器（最高优先级）
+                { urls: 'stun:stun.cloudflare.com:3478' },
 
-                // More reliable STUN servers
-                { urls: 'stun:stun.stunprotocol.org:3478' },
-                { urls: 'stun:stun.stunprotocol.org' },
-                { urls: 'stun:stunserver.org' },
-                { urls: 'stun:stun.softjoys.com' },
+                // Google STUN 服务器（备用）
+                { urls: 'stun:stun.l.google.com:19302' },
+
+                // VoIP 服务 STUN 服务器
                 { urls: 'stun:stun.voipbuster.com' },
                 { urls: 'stun:stun.voipstunt.com' },
-                { urls: 'stun:stun.counterpath.com:3478' },
-                { urls: 'stun:stun.ekiga.net' },
-                { urls: 'stun:stun.ideasip.com' },
-                { urls: 'stun:stun.schlund.de' },
-                { urls: 'stun:stun.voiparound.com' },
-                { urls: 'stun:stun.voipbuster.com' },
-                { urls: 'stun:stun.voxgratia.org' },
-
-                // Free TURN servers (limited bandwidth)
-                {
-                    urls: 'turn:openrelay.metered.ca:80',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject',
-                },
-                {
-                    urls: 'turn:openrelay.metered.ca:443',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject',
-                },
-                {
-                    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject',
-                },
             ],
             iceCandidatePoolSize: 10, // Generate more ICE candidates
             bundlePolicy: 'balanced',
