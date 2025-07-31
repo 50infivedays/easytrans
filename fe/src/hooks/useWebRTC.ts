@@ -28,7 +28,6 @@ export interface UseWebRTCReturn {
     sendMessage: (text: string) => void;
     sendFile: (file: File) => void;
     disconnect: () => void;
-    testStunServers: () => Promise<void>;
 }
 
 export const useWebRTC = (
@@ -48,59 +47,7 @@ export const useWebRTC = (
     const fileTransferRef = useRef<Map<string, FileTransfer>>(new Map());
     const receivingFilesRef = useRef<Map<string, { chunks: ArrayBuffer[], receivedSize: number, totalSize: number, fileName: string }>>(new Map());
 
-    // Test STUN servers to ensure they're working
-    const testStunServers = useCallback(async () => {
-        console.log('🔍 Testing STUN servers...');
 
-        const testConfig: RTCConfiguration = {
-            iceServers: [
-                { urls: 'stun:stun.cloudflare.com:3478' },
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun.voipbuster.com' },
-                { urls: 'stun:stun.voipstunt.com' },
-            ],
-            iceCandidatePoolSize: 5,
-        };
-
-        const testPc = new RTCPeerConnection(testConfig);
-
-        let hasPublicIP = false;
-
-        testPc.onicecandidate = (event) => {
-            if (event.candidate) {
-                console.log('🧪 STUN Test - ICE Candidate:', {
-                    type: event.candidate.type,
-                    address: event.candidate.address,
-                    port: event.candidate.port,
-                    candidate: event.candidate.candidate
-                });
-
-                if (event.candidate.type === 'srflx') {
-                    hasPublicIP = true;
-                    console.log('✅ STUN working! Found public IP:', event.candidate.address);
-                }
-            }
-        };
-
-        testPc.onicegatheringstatechange = () => {
-            console.log('🔍 STUN Test - ICE gathering state:', testPc.iceGatheringState);
-            if (testPc.iceGatheringState === 'complete') {
-                if (!hasPublicIP) {
-                    console.error('❌ STUN servers failed - no public IP found');
-                    console.log('💡 This could be due to:');
-                    console.log('  - Corporate firewall blocking STUN traffic');
-                    console.log('  - Network configuration issues');
-                    console.log('  - All STUN servers being unreachable');
-                }
-                testPc.close();
-            }
-        };
-
-        // Create a dummy data channel to trigger ICE gathering
-        testPc.createDataChannel('test');
-        const offer = await testPc.createOffer();
-        await testPc.setLocalDescription(offer);
-    }, []);
 
     const setupDataChannel = useCallback((channel: RTCDataChannel) => {
         channel.onopen = () => {
@@ -274,6 +221,9 @@ export const useWebRTC = (
                 // Cloudflare STUN 服务器（最高优先级）
                 { urls: 'stun:stun.cloudflare.com:3478' },
 
+                // 小米WiFi STUN 服务器
+                { urls: 'stun:stun.miwifi.com:3478' },
+
                 // Google STUN 服务器（备用）
                 { urls: 'stun:stun.l.google.com:19302' },
 
@@ -348,8 +298,7 @@ export const useWebRTC = (
             return;
         }
 
-        // Test STUN servers first
-        await testStunServers();
+
 
         // Store the target ID for ICE candidates
         currentTargetRef.current = targetId;
@@ -382,7 +331,7 @@ export const useWebRTC = (
         } catch (error) {
             console.error('Error creating offer:', error);
         }
-    }, [createPeerConnection, setupDataChannel, sendSignalingMessage, testStunServers]);
+    }, [createPeerConnection, setupDataChannel, sendSignalingMessage]);
 
     const sendMessage = useCallback((text: string) => {
         if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
@@ -637,6 +586,5 @@ export const useWebRTC = (
         sendMessage,
         sendFile,
         disconnect,
-        testStunServers,
     };
 }; 
