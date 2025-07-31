@@ -17,6 +17,7 @@ export interface FileTransfer {
     fileSize: number;
     progress: number;
     status: 'pending' | 'sending' | 'receiving' | 'completed' | 'failed';
+    data?: ArrayBuffer;
 }
 
 export interface UseWebRTCReturn {
@@ -27,6 +28,7 @@ export interface UseWebRTCReturn {
     sendMessage: (text: string) => void;
     sendFile: (file: File) => void;
     disconnect: () => void;
+    testStunServers: () => Promise<void>;
 }
 
 export const useWebRTC = (
@@ -35,41 +37,68 @@ export const useWebRTC = (
 ): UseWebRTCReturn => {
     const [isConnected, setIsConnected] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [fileTransfers] = useState<FileTransfer[]>([]);
+    const [fileTransfers, setFileTransfers] = useState<FileTransfer[]>([]);
 
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const dataChannelRef = useRef<RTCDataChannel | null>(null);
     const pendingICECandidatesRef = useRef<RTCIceCandidate[]>([]);
     const currentTargetRef = useRef<string | null>(null);
 
-    // WebRTC configuration with multiple ICE servers for better NAT traversal
-    const config: RTCConfiguration = {
-        iceServers: [
-            // Google STUN servers
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' },
+    // File transfer state
+    const fileTransferRef = useRef<Map<string, FileTransfer>>(new Map());
+    const receivingFilesRef = useRef<Map<string, { chunks: ArrayBuffer[], receivedSize: number, totalSize: number, fileName: string }>>(new Map());
 
-            // Additional STUN servers from different providers
-            { urls: 'stun:stunserver.org' },
-            { urls: 'stun:stun.voip.blackberry.com:3478' },
+    // Test STUN servers to ensure they're working
+    const testStunServers = useCallback(async () => {
+        console.log('🔍 Testing STUN servers...');
 
-            // Free TURN servers (limited bandwidth)
-            {
-                urls: 'turn:openrelay.metered.ca:80',
-                username: 'openrelayproject',
-                credential: 'openrelayproject',
-            },
-            {
-                urls: 'turn:openrelay.metered.ca:443',
-                username: 'openrelayproject',
-                credential: 'openrelayproject',
-            },
-        ],
-        iceCandidatePoolSize: 10, // Generate more ICE candidates
-    };
+        const testConfig: RTCConfiguration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun.stunprotocol.org:3478' },
+            ],
+            iceCandidatePoolSize: 5,
+        };
+
+        const testPc = new RTCPeerConnection(testConfig);
+
+        let hasPublicIP = false;
+
+        testPc.onicecandidate = (event) => {
+            if (event.candidate) {
+                console.log('🧪 STUN Test - ICE Candidate:', {
+                    type: event.candidate.type,
+                    address: event.candidate.address,
+                    port: event.candidate.port,
+                    candidate: event.candidate.candidate
+                });
+
+                if (event.candidate.type === 'srflx') {
+                    hasPublicIP = true;
+                    console.log('✅ STUN working! Found public IP:', event.candidate.address);
+                }
+            }
+        };
+
+        testPc.onicegatheringstatechange = () => {
+            console.log('🔍 STUN Test - ICE gathering state:', testPc.iceGatheringState);
+            if (testPc.iceGatheringState === 'complete') {
+                if (!hasPublicIP) {
+                    console.error('❌ STUN servers failed - no public IP found');
+                    console.log('💡 This could be due to:');
+                    console.log('  - Corporate firewall blocking STUN traffic');
+                    console.log('  - Network configuration issues');
+                    console.log('  - All STUN servers being unreachable');
+                }
+                testPc.close();
+            }
+        };
+
+        // Create a dummy data channel to trigger ICE gathering
+        testPc.createDataChannel('test');
+        const offer = await testPc.createOffer();
+        await testPc.setLocalDescription(offer);
+    }, []);
 
     const setupDataChannel = useCallback((channel: RTCDataChannel) => {
         channel.onopen = () => {
@@ -84,6 +113,13 @@ export const useWebRTC = (
 
         channel.onmessage = (event) => {
             try {
+                // Check if it's a binary message (file chunk)
+                if (event.data instanceof ArrayBuffer) {
+                    handleFileChunk(event.data);
+                    return;
+                }
+
+                // Handle text messages
                 const data = JSON.parse(event.data);
 
                 if (data.type === 'text') {
@@ -95,9 +131,15 @@ export const useWebRTC = (
                         type: 'text',
                     };
                     setMessages(prev => [...prev, message]);
-                } else if (data.type === 'file') {
-                    // Handle file transfer
-                    console.log('File transfer received:', data);
+                } else if (data.type === 'file-start') {
+                    // Handle file transfer start
+                    handleFileTransferStart(data);
+                } else if (data.type === 'file-chunk') {
+                    // Handle file chunk info (not the actual chunk)
+                    handleFileChunkInfo(data);
+                } else if (data.type === 'file-end') {
+                    // Handle file transfer end
+                    handleFileTransferEnd(data);
                 }
             } catch (error) {
                 console.error('Error parsing data channel message:', error);
@@ -107,8 +149,173 @@ export const useWebRTC = (
         dataChannelRef.current = channel;
     }, []);
 
+    const handleFileTransferStart = useCallback((data: any) => {
+        const transferId = data.transferId;
+        const fileName = data.fileName;
+        const fileSize = data.fileSize;
+
+        console.log('Starting file transfer:', { transferId, fileName, fileSize });
+
+        // Initialize receiving file
+        receivingFilesRef.current.set(transferId, {
+            chunks: [],
+            receivedSize: 0,
+            totalSize: fileSize,
+            fileName: fileName
+        });
+
+        // Add to file transfers list
+        const fileTransfer: FileTransfer = {
+            id: transferId,
+            fileName,
+            fileSize,
+            progress: 0,
+            status: 'receiving'
+        };
+
+        setFileTransfers(prev => [...prev, fileTransfer]);
+    }, []);
+
+    const handleFileChunkInfo = useCallback((data: any) => {
+        const transferId = data.transferId;
+        const chunkIndex = data.chunkIndex;
+        const totalChunks = data.totalChunks;
+
+        console.log('File chunk info:', { transferId, chunkIndex, totalChunks });
+
+        // Update progress
+        setFileTransfers(prev => prev.map(transfer => {
+            if (transfer.id === transferId) {
+                return {
+                    ...transfer,
+                    progress: (chunkIndex / totalChunks) * 100
+                };
+            }
+            return transfer;
+        }));
+    }, []);
+
+    const handleFileChunk = useCallback((chunk: ArrayBuffer) => {
+        // Find the current receiving file
+        const entries = Array.from(receivingFilesRef.current.entries());
+        for (const [transferId, fileInfo] of entries) {
+            fileInfo.chunks.push(chunk);
+            fileInfo.receivedSize += chunk.byteLength;
+
+            // Update progress
+            setFileTransfers(prev => prev.map(transfer => {
+                if (transfer.id === transferId) {
+                    return {
+                        ...transfer,
+                        progress: (fileInfo.receivedSize / fileInfo.totalSize) * 100
+                    };
+                }
+                return transfer;
+            }));
+
+            break; // Only handle one file at a time
+        }
+    }, []);
+
+    const handleFileTransferEnd = useCallback((data: any) => {
+        const transferId = data.transferId;
+        const fileInfo = receivingFilesRef.current.get(transferId);
+
+        if (fileInfo) {
+            console.log('File transfer completed:', fileInfo.fileName);
+
+            // Combine all chunks
+            const totalSize = fileInfo.chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+            const combinedBuffer = new ArrayBuffer(totalSize);
+            const uint8Array = new Uint8Array(combinedBuffer);
+
+            let offset = 0;
+            for (const chunk of fileInfo.chunks) {
+                uint8Array.set(new Uint8Array(chunk), offset);
+                offset += chunk.byteLength;
+            }
+
+            // Update file transfer status
+            setFileTransfers(prev => prev.map(transfer => {
+                if (transfer.id === transferId) {
+                    return {
+                        ...transfer,
+                        status: 'completed',
+                        progress: 100,
+                        data: combinedBuffer
+                    };
+                }
+                return transfer;
+            }));
+
+            // Add message
+            const message: ChatMessage = {
+                id: Date.now().toString(),
+                text: `收到文件: ${fileInfo.fileName}`,
+                sender: 'peer',
+                timestamp: new Date(),
+                type: 'file',
+                fileName: fileInfo.fileName,
+                fileSize: fileInfo.totalSize,
+            };
+            setMessages(prev => [...prev, message]);
+
+            // Clean up
+            receivingFilesRef.current.delete(transferId);
+        }
+    }, []);
+
     const createPeerConnection = useCallback(() => {
-        const pc = new RTCPeerConnection(config);
+        // Create WebRTC configuration
+        const rtcConfig: RTCConfiguration = {
+            iceServers: [
+                // Google STUN servers (primary)
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+
+                // More reliable STUN servers
+                { urls: 'stun:stun.stunprotocol.org:3478' },
+                { urls: 'stun:stun.stunprotocol.org' },
+                { urls: 'stun:stunserver.org' },
+                { urls: 'stun:stun.softjoys.com' },
+                { urls: 'stun:stun.voipbuster.com' },
+                { urls: 'stun:stun.voipstunt.com' },
+                { urls: 'stun:stun.counterpath.com:3478' },
+                { urls: 'stun:stun.ekiga.net' },
+                { urls: 'stun:stun.ideasip.com' },
+                { urls: 'stun:stun.schlund.de' },
+                { urls: 'stun:stun.voiparound.com' },
+                { urls: 'stun:stun.voipbuster.com' },
+                { urls: 'stun:stun.voxgratia.org' },
+
+                // Free TURN servers (limited bandwidth)
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject',
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject',
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject',
+                },
+            ],
+            iceCandidatePoolSize: 10, // Generate more ICE candidates
+            bundlePolicy: 'balanced',
+            rtcpMuxPolicy: 'require',
+            // Force the use of STUN servers for discovering public IP
+            iceTransportPolicy: 'all',
+        };
+
+        const pc = new RTCPeerConnection(rtcConfig);
 
         pc.onicecandidate = (event) => {
             if (event.candidate && currentTargetRef.current) {
@@ -159,7 +366,7 @@ export const useWebRTC = (
         };
 
         return pc;
-    }, [sendSignalingMessage, setupDataChannel, config]);
+    }, [sendSignalingMessage, setupDataChannel]);
 
     const connect = useCallback(async (targetId: string) => {
         console.log('Connecting to target:', targetId);
@@ -167,6 +374,9 @@ export const useWebRTC = (
             console.error('Target ID is empty');
             return;
         }
+
+        // Test STUN servers first
+        await testStunServers();
 
         // Store the target ID for ICE candidates
         currentTargetRef.current = targetId;
@@ -199,7 +409,7 @@ export const useWebRTC = (
         } catch (error) {
             console.error('Error creating offer:', error);
         }
-    }, [createPeerConnection, setupDataChannel, sendSignalingMessage]);
+    }, [createPeerConnection, setupDataChannel, sendSignalingMessage, testStunServers]);
 
     const sendMessage = useCallback((text: string) => {
         if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
@@ -225,27 +435,118 @@ export const useWebRTC = (
 
     const sendFile = useCallback((file: File) => {
         if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
-            // For now, just send file info - proper file transfer would need chunking
-            const fileData = {
-                type: 'file',
+            const transferId = Date.now().toString();
+            const chunkSize = 16384; // 16KB chunks
+            const totalChunks = Math.ceil(file.size / chunkSize);
+
+            console.log('Starting file transfer:', {
                 fileName: file.name,
                 fileSize: file.size,
-                timestamp: new Date().toISOString(),
-            };
+                transferId,
+                totalChunks
+            });
 
-            dataChannelRef.current.send(JSON.stringify(fileData));
-
-            // Add to local messages
-            const message: ChatMessage = {
-                id: Date.now().toString(),
-                text: `File: ${file.name}`,
-                sender: 'me',
-                timestamp: new Date(),
-                type: 'file',
+            // Add to file transfers list
+            const fileTransfer: FileTransfer = {
+                id: transferId,
                 fileName: file.name,
                 fileSize: file.size,
+                progress: 0,
+                status: 'sending'
             };
-            setMessages(prev => [...prev, message]);
+
+            setFileTransfers(prev => [...prev, fileTransfer]);
+            fileTransferRef.current.set(transferId, fileTransfer);
+
+            // Send file start message
+            const startMessage = {
+                type: 'file-start',
+                transferId,
+                fileName: file.name,
+                fileSize: file.size,
+                totalChunks
+            };
+
+            dataChannelRef.current.send(JSON.stringify(startMessage));
+
+            // Read and send file in chunks
+            const reader = new FileReader();
+            let chunkIndex = 0;
+
+            reader.onload = (e) => {
+                if (e.target?.result instanceof ArrayBuffer) {
+                    // Send chunk info
+                    const chunkInfo = {
+                        type: 'file-chunk',
+                        transferId,
+                        chunkIndex,
+                        totalChunks
+                    };
+                    dataChannelRef.current?.send(JSON.stringify(chunkInfo));
+
+                    // Send actual chunk data
+                    dataChannelRef.current?.send(e.target.result);
+
+                    chunkIndex++;
+
+                    // Update progress
+                    setFileTransfers(prev => prev.map(transfer => {
+                        if (transfer.id === transferId) {
+                            return {
+                                ...transfer,
+                                progress: (chunkIndex / totalChunks) * 100
+                            };
+                        }
+                        return transfer;
+                    }));
+
+                    // Continue reading if more chunks
+                    if (chunkIndex < totalChunks) {
+                        const start = chunkIndex * chunkSize;
+                        const end = Math.min(start + chunkSize, file.size);
+                        const chunk = file.slice(start, end);
+                        reader.readAsArrayBuffer(chunk);
+                    } else {
+                        // Send file end message
+                        const endMessage = {
+                            type: 'file-end',
+                            transferId
+                        };
+                        dataChannelRef.current?.send(JSON.stringify(endMessage));
+
+                        // Update status to completed
+                        setFileTransfers(prev => prev.map(transfer => {
+                            if (transfer.id === transferId) {
+                                return {
+                                    ...transfer,
+                                    status: 'completed',
+                                    progress: 100
+                                };
+                            }
+                            return transfer;
+                        }));
+
+                        // Add message
+                        const message: ChatMessage = {
+                            id: Date.now().toString(),
+                            text: `发送文件: ${file.name}`,
+                            sender: 'me',
+                            timestamp: new Date(),
+                            type: 'file',
+                            fileName: file.name,
+                            fileSize: file.size,
+                        };
+                        setMessages(prev => [...prev, message]);
+
+                        // Clean up
+                        fileTransferRef.current.delete(transferId);
+                    }
+                }
+            };
+
+            // Start reading first chunk
+            const firstChunk = file.slice(0, chunkSize);
+            reader.readAsArrayBuffer(firstChunk);
         }
     }, []);
 
@@ -363,5 +664,6 @@ export const useWebRTC = (
         sendMessage,
         sendFile,
         disconnect,
+        testStunServers,
     };
 }; 

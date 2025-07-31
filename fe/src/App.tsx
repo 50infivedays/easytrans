@@ -4,7 +4,7 @@ import { Input } from './components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useWebRTC } from './hooks/useWebRTC';
-import { Send, Copy, FileUp, Users, Wifi, WifiOff } from 'lucide-react';
+import { Send, Copy, FileUp, Users, Wifi, WifiOff, Download, CheckCircle, AlertCircle } from 'lucide-react';
 
 // 根据环境自动选择WebSocket URL
 const getWebSocketURL = () => {
@@ -30,6 +30,7 @@ function App() {
   const {
     isConnected: rtcConnected,
     messages,
+    fileTransfers,
     connect: connectRTC,
     sendMessage: sendRTCMessage,
     sendFile,
@@ -75,6 +76,31 @@ function App() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const handleDownloadFile = (transfer: any) => {
+    if (transfer.data) {
+      const blob = new Blob([transfer.data]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = transfer.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'failed':
+        return <AlertCircle className="w-4 h-4 text-red-500" />;
+      default:
+        return <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />;
+    }
   };
 
   return (
@@ -238,6 +264,48 @@ function App() {
                 )}
               </div>
 
+              {/* File Transfers */}
+              {fileTransfers.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">文件传输</h3>
+                  <div className="space-y-2">
+                    {fileTransfers.map((transfer) => (
+                      <div key={transfer.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                        {getStatusIcon(transfer.status)}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {transfer.fileName}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${transfer.progress}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {transfer.progress.toFixed(0)}%
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            {((transfer.fileSize || 0) / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                        {transfer.status === 'completed' && transfer.data && (
+                          <Button
+                            onClick={() => handleDownloadFile(transfer)}
+                            size="sm"
+                            variant="outline"
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Input Area */}
               <div className="flex gap-2">
                 <Input
@@ -279,6 +347,7 @@ function App() {
               <li>输入对方的UID并点击"连接"按钮</li>
               <li>连接成功后即可开始发送消息和文件</li>
               <li>支持文本消息和文件传输（通过WebRTC数据通道）</li>
+              <li>文件传输支持进度显示和自动下载</li>
             </ol>
           </CardContent>
         </Card>
