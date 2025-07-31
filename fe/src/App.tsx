@@ -109,7 +109,46 @@ function App() {
         {/* Header */}
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">EasyTrans</h1>
-          <p className="text-gray-600">基于WebRTC的隐私安全的文件和文本传输</p>
+          <p className="text-gray-600 mb-4">基于WebRTC的隐私安全的文件和文本传输</p>
+
+          {/* 功能特性展示 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="text-center p-3 bg-blue-50 rounded-lg">
+              <div className="text-blue-600 font-semibold text-sm">🔒 隐私安全</div>
+              <div className="text-xs text-gray-600">端到端加密</div>
+            </div>
+            <div className="text-center p-3 bg-green-50 rounded-lg">
+              <div className="text-green-600 font-semibold text-sm">📁 文件传输</div>
+              <div className="text-xs text-gray-600">P2P直连传输</div>
+            </div>
+            <div className="text-center p-3 bg-purple-50 rounded-lg">
+              <div className="text-purple-600 font-semibold text-sm">💬 实时聊天</div>
+              <div className="text-xs text-gray-600">消息即时发送</div>
+            </div>
+            <div className="text-center p-3 bg-orange-50 rounded-lg">
+              <div className="text-orange-600 font-semibold text-sm">⚡ 快速传输</div>
+              <div className="text-xs text-gray-600">无需服务器中转</div>
+            </div>
+          </div>
+
+          {/* 安全特性说明 */}
+          <div className="bg-gray-50 p-4 rounded-lg mb-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-2">🔐 隐私安全特性</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <span className="text-green-500">✓</span>
+                <span>端到端加密保护</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-green-500">✓</span>
+                <span>P2P直连，无服务器中转</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-green-500">✓</span>
+                <span>数据不经过第三方服务器</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Connection Status */}
@@ -230,7 +269,10 @@ function App() {
         {rtcConnected && (
           <Card>
             <CardHeader>
-              <CardTitle>聊天和文件传输</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <span>💬 实时聊天 & 📁 文件传输</span>
+              </CardTitle>
+              <CardDescription>支持端到端加密的文本消息发送和P2P文件传输</CardDescription>
             </CardHeader>
             <CardContent>
               {/* Messages */}
@@ -338,17 +380,67 @@ function App() {
         {/* Instructions */}
         <Card>
           <CardHeader>
-            <CardTitle>使用说明</CardTitle>
+            <CardTitle>📖 使用说明</CardTitle>
+            <CardDescription>快速开始使用EasyTrans进行隐私安全的文件传输和聊天</CardDescription>
           </CardHeader>
           <CardContent>
-            <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600">
-              <li>确保WebSocket连接正常（显示"已连接"）</li>
-              <li>复制你的UID并分享给对方</li>
-              <li>输入对方的UID并点击"连接"按钮</li>
-              <li>连接成功后即可开始发送消息和文件</li>
-              <li>支持文本消息和文件传输（通过WebRTC数据通道）</li>
-              <li>文件传输支持进度显示和自动下载</li>
-            </ol>
+            <div className="space-y-6">
+              {/* 基本使用步骤 */}
+              <div>
+                <h3 className="font-semibold text-gray-800 mb-3">🚀 快速开始</h3>
+                <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600">
+                  <li>确保WebSocket连接正常（显示"已连接"）</li>
+                  <li>复制你的UID并分享给对方</li>
+                  <li>输入对方的UID并点击"连接"按钮</li>
+                  <li>连接成功后即可开始发送消息和文件</li>
+                </ol>
+              </div>
+
+              {/* 功能特性说明 */}
+              <div>
+                <h3 className="font-semibold text-gray-800 mb-3">✨ 核心功能</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-blue-500">💬</span>
+                      <span className="text-sm font-medium">实时聊天</span>
+                    </div>
+                    <p className="text-xs text-gray-600 ml-6">支持文本消息即时发送，端到端加密保护</p>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-500">📁</span>
+                      <span className="text-sm font-medium">文件传输</span>
+                    </div>
+                    <p className="text-xs text-gray-600 ml-6">P2P直连传输，支持大文件，显示传输进度</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-purple-500">🔒</span>
+                      <span className="text-sm font-medium">隐私安全</span>
+                    </div>
+                    <p className="text-xs text-gray-600 ml-6">WebRTC技术，数据不经过第三方服务器</p>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-orange-500">⚡</span>
+                      <span className="text-sm font-medium">快速传输</span>
+                    </div>
+                    <p className="text-xs text-gray-600 ml-6">无需服务器中转，传输速度更快</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 安全说明 */}
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-blue-800 mb-2">🔐 安全说明</h3>
+                <div className="text-sm text-blue-700 space-y-1">
+                  <p>• 所有数据传输均采用端到端加密</p>
+                  <p>• 文件传输通过WebRTC数据通道，不经过服务器</p>
+                  <p>• 聊天消息实时加密传输，保护隐私安全</p>
+                  <p>• 支持任意大小文件传输，无限制</p>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
