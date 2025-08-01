@@ -230,6 +230,13 @@ export const useWebRTC = (
                 // VoIP 服务 STUN 服务器
                 { urls: 'stun:stun.voipbuster.com' },
                 { urls: 'stun:stun.voipstunt.com' },
+
+                // 自定义 TURN 服务器（已注释）
+                // {
+                //     urls: ["turn:turn.bqrdh.com"],
+                //     username: "chenzw",
+                //     credential: "otary@1990"
+                // },
             ],
             iceCandidatePoolSize: 10, // Generate more ICE candidates
             bundlePolicy: 'balanced',
