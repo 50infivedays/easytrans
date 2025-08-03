@@ -21,6 +21,10 @@ export const QRScanner: React.FC<QRScannerProps> = ({
 }) => {
     const [isScanning, setIsScanning] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+
+    // 检测是否为移动设备
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     const handleScan = useCallback((detectedCodes: any[]) => {
         if (detectedCodes.length > 0) {
@@ -33,13 +37,78 @@ export const QRScanner: React.FC<QRScannerProps> = ({
 
     const handleError = useCallback((error: any) => {
         console.error('QR Scanner error:', error);
-        setError('摄像头访问失败，请检查权限设置');
+        if (error.name === 'NotAllowedError') {
+            setError('摄像头权限被拒绝，请允许访问摄像头');
+            setHasPermission(false);
+        } else if (error.name === 'NotFoundError') {
+            setError('未找到摄像头设备');
+            setHasPermission(false);
+        } else {
+            setError('摄像头访问失败，请检查权限设置');
+            setHasPermission(false);
+        }
     }, []);
 
-    const handleStartScan = useCallback(() => {
-        setIsScanning(true);
-        setError(null);
-    }, []);
+    const handleStartScan = useCallback(async () => {
+        try {
+            // 检查是否支持getUserMedia
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                setError('您的浏览器不支持摄像头访问');
+                setHasPermission(false);
+                return;
+            }
+
+            // 检查是否在HTTPS环境下（移动端要求）
+            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+                setError(isMobile ?
+                    '移动端需要HTTPS环境才能访问摄像头，请使用HTTPS链接访问' :
+                    '移动端需要HTTPS环境才能访问摄像头'
+                );
+                setHasPermission(false);
+                return;
+            }
+
+            // 移动端可能需要更具体的约束条件
+            const constraints = {
+                video: {
+                    facingMode: 'environment',
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            };
+
+            console.log('Requesting camera permission with constraints:', constraints);
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+            console.log('Camera permission granted, stream tracks:', stream.getTracks().length);
+            setHasPermission(true);
+            setIsScanning(true);
+            setError(null);
+
+            // 立即停止流，因为我们只是测试权限
+            stream.getTracks().forEach(track => {
+                track.stop();
+                console.log('Stopped track:', track.kind);
+            });
+        } catch (err: any) {
+            console.error('Camera permission error:', err);
+            console.error('Error name:', err.name);
+            console.error('Error message:', err.message);
+
+            if (err.name === 'NotAllowedError') {
+                setError('摄像头权限被拒绝，请允许访问摄像头');
+            } else if (err.name === 'NotFoundError') {
+                setError('未找到摄像头设备');
+            } else if (err.name === 'NotSupportedError') {
+                setError('您的设备不支持摄像头访问');
+            } else if (err.name === 'NotReadableError') {
+                setError('摄像头被其他应用占用');
+            } else {
+                setError(`摄像头访问失败: ${err.message || '未知错误'}`);
+            }
+            setHasPermission(false);
+        }
+    }, [isMobile]);
 
     const handleStopScan = useCallback(() => {
         setIsScanning(false);
@@ -60,17 +129,28 @@ export const QRScanner: React.FC<QRScannerProps> = ({
                     </div>
                 )}
 
+                {hasPermission === false && !error && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <p className="text-yellow-700 text-sm">
+                            {isMobile ? '需要摄像头权限才能开始扫描（移动端请确保使用HTTPS）' : '需要摄像头权限才能开始扫描'}
+                        </p>
+                    </div>
+                )}
+
                 <div className="relative">
-                    {isScanning ? (
-                        <div className="relative">
-                            <Scanner
-                                onScan={handleScan}
-                                onError={handleError}
-                                constraints={{
-                                    facingMode: 'environment'
-                                }}
-                                formats={['qr_code']}
-                            />
+                    <div className="relative">
+                        <Scanner
+                            onScan={handleScan}
+                            onError={handleError}
+                            constraints={{
+                                facingMode: 'environment',
+                                width: { ideal: 1280 },
+                                height: { ideal: 720 }
+                            }}
+                            formats={['qr_code']}
+                            paused={!isScanning}
+                        />
+                        {isScanning && (
                             <div className="absolute inset-0 border-2 border-blue-500 border-dashed rounded-lg pointer-events-none">
                                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                                     <div className="w-48 h-48 border-2 border-blue-500 rounded-lg">
@@ -81,22 +161,23 @@ export const QRScanner: React.FC<QRScannerProps> = ({
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    ) : (
-                        <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
-                            <div className="text-center">
-                                <CameraOff className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                                <p className="text-gray-500">点击开始扫描</p>
+                        )}
+                        {!isScanning && (
+                            <div className="absolute inset-0 bg-gray-100 bg-opacity-90 flex items-center justify-center">
+                                <div className="text-center">
+                                    <CameraOff className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                                    <p className="text-gray-500">点击开始扫描</p>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
                 <div className="flex gap-2 justify-center">
                     {!isScanning ? (
                         <Button onClick={handleStartScan} className="flex items-center gap-2">
                             <Camera className="w-4 h-4" />
-                            开始扫描
+                            {hasPermission === false ? '请求权限' : '开始扫描'}
                         </Button>
                     ) : (
                         <Button onClick={handleStopScan} variant="outline" className="flex items-center gap-2">
