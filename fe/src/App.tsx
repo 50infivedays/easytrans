@@ -1,8 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Dialog } from './components/ui/dialog';
+import { QRCodeComponent } from './components/ui/qrcode';
+import { Toast } from './components/ui/toast';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useWebRTC } from './hooks/useWebRTC';
 import { Send, Copy, FileUp, Users, Wifi, WifiOff, Download, CheckCircle, AlertCircle } from 'lucide-react';
@@ -17,7 +19,13 @@ function App() {
   const [targetId, setTargetId] = useState('');
   const [messageInput, setMessageInput] = useState('');
   const [language, setLanguage] = useState<string>('zh');
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isInitialMount = useRef(true);
+  const hasAttemptedConnection = useRef(false);
+  const previousConnectionState = useRef<boolean | null>(null);
 
   // 初始化语言设置
   useEffect(() => {
@@ -64,6 +72,7 @@ function App() {
 
     if (targetId.trim()) {
       console.log('Attempting to connect to:', targetId);
+      hasAttemptedConnection.current = true;
       connectRTC(targetId);
     } else {
       console.log('Target ID is empty, cannot connect');
@@ -84,11 +93,97 @@ function App() {
     }
   };
 
-  const copyToClipboard = () => {
-    if (uid) {
-      navigator.clipboard.writeText(uid);
+  const copyToClipboard = async () => {
+    if (!uid) return;
+
+    try {
+      // 尝试使用现代 Clipboard API
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(uid);
+        console.log('UID copied to clipboard');
+        showSuccessToast();
+      } else {
+        // 回退方案：使用传统的 document.execCommand
+        const textArea = document.createElement('textarea');
+        textArea.value = uid;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+
+        if (successful) {
+          console.log('UID copied to clipboard (fallback method)');
+          showSuccessToast();
+        } else {
+          console.error('Failed to copy UID');
+          throw new Error('execCommand failed');
+        }
+      }
+    } catch (error) {
+      console.error('Error copying UID to clipboard:', error);
+      // 如果所有方法都失败，显示UID让用户手动复制
+      const message = language === 'zh'
+        ? `UID: ${uid}\n\n请手动复制此UID`
+        : `UID: ${uid}\n\nPlease copy this UID manually`;
+      alert(message);
     }
   };
+
+  const showSuccessToast = () => {
+    const message = language === 'zh' ? 'UID已复制到剪贴板' : 'UID copied to clipboard';
+    setToastMessage(message);
+    setToastType('success');
+    setShowToast(true);
+  };
+
+  const showConnectionToast = useCallback((isConnected: boolean, isManualDisconnect: boolean = false) => {
+    if (isConnected) {
+      const message = language === 'zh' ? '连接成功' : 'Connection successful';
+      setToastMessage(message);
+      setToastType('success');
+    } else {
+      if (isManualDisconnect) {
+        const message = language === 'zh' ? '连接断开' : 'Connection disconnected';
+        setToastMessage(message);
+        setToastType('info');
+      } else {
+        const message = language === 'zh' ? '连接失败' : 'Connection failed';
+        setToastMessage(message);
+        setToastType('error');
+      }
+    }
+    setShowToast(true);
+  }, [language]);
+
+  // 监听WebRTC连接状态变化
+  useEffect(() => {
+    // 跳过初始加载时的提示
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      previousConnectionState.current = rtcConnected;
+      return;
+    }
+
+    // 只在用户尝试过连接后才显示状态提示
+    if (rtcConnected !== undefined && hasAttemptedConnection.current) {
+      // 检查是否是从连接状态变为断开状态
+      const wasConnected = previousConnectionState.current;
+      const isNowDisconnected = !rtcConnected;
+
+      // 如果之前是连接状态，现在是断开状态，可能是主动断开
+      const isManualDisconnect = wasConnected === true && isNowDisconnected;
+
+      showConnectionToast(rtcConnected, isManualDisconnect);
+    }
+
+    // 更新之前的状态
+    previousConnectionState.current = rtcConnected;
+  }, [rtcConnected, showConnectionToast]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString(language === 'zh' ? 'zh-CN' : 'en-US', {
@@ -123,36 +218,46 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 relative">
-      {/* Language Switcher */}
-      <LanguageSwitcher
-        currentLanguage={language}
-        onLanguageChange={handleLanguageChange}
-      />
-
+    <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{t.title}</h1>
-          <p className="text-gray-600 mb-4">{t.subtitle}</p>
+        {/* Header with Language Switcher */}
+        <div className="text-center relative">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{t.title}</h1>
+          <p className="text-sm md:text-base text-gray-600 mb-4">{t.subtitle}</p>
+
+          {/* Language Switcher - positioned below title on mobile */}
+          <div className="flex justify-center mb-4 md:hidden">
+            <LanguageSwitcher
+              currentLanguage={language}
+              onLanguageChange={handleLanguageChange}
+            />
+          </div>
+
+          {/* Language Switcher - positioned in top right on desktop */}
+          <div className="hidden md:block absolute top-0 right-0">
+            <LanguageSwitcher
+              currentLanguage={language}
+              onLanguageChange={handleLanguageChange}
+            />
+          </div>
 
           {/* 功能特性展示 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="text-center p-3 bg-blue-50 rounded-lg">
-              <div className="text-blue-600 font-semibold text-sm">{t.features.privacy}</div>
-              <div className="text-xs text-gray-600">{t.features.privacyDesc}</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6">
+            <div className="text-center p-2 md:p-3 bg-blue-50 rounded-lg">
+              <div className="text-blue-600 font-semibold text-xs md:text-sm">{t.features.privacy}</div>
+              <div className="text-xs text-gray-600 hidden md:block">{t.features.privacyDesc}</div>
             </div>
-            <div className="text-center p-3 bg-green-50 rounded-lg">
-              <div className="text-green-600 font-semibold text-sm">{t.features.fileTransfer}</div>
-              <div className="text-xs text-gray-600">{t.features.fileTransferDesc}</div>
+            <div className="text-center p-2 md:p-3 bg-green-50 rounded-lg">
+              <div className="text-green-600 font-semibold text-xs md:text-sm">{t.features.fileTransfer}</div>
+              <div className="text-xs text-gray-600 hidden md:block">{t.features.fileTransferDesc}</div>
             </div>
-            <div className="text-center p-3 bg-purple-50 rounded-lg">
-              <div className="text-purple-600 font-semibold text-sm">{t.features.chat}</div>
-              <div className="text-xs text-gray-600">{t.features.chatDesc}</div>
+            <div className="text-center p-2 md:p-3 bg-purple-50 rounded-lg">
+              <div className="text-purple-600 font-semibold text-xs md:text-sm">{t.features.chat}</div>
+              <div className="text-xs text-gray-600 hidden md:block">{t.features.chatDesc}</div>
             </div>
-            <div className="text-center p-3 bg-orange-50 rounded-lg">
-              <div className="text-orange-600 font-semibold text-sm">{t.features.fastTransfer}</div>
-              <div className="text-xs text-gray-600">{t.features.fastTransferDesc}</div>
+            <div className="text-center p-2 md:p-3 bg-orange-50 rounded-lg">
+              <div className="text-orange-600 font-semibold text-xs md:text-sm">{t.features.fastTransfer}</div>
+              <div className="text-xs text-gray-600 hidden md:block">{t.features.fastTransferDesc}</div>
             </div>
           </div>
 
@@ -224,23 +329,35 @@ function App() {
             <CardDescription>{t.myUid.description}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-2">
-              <Input
-                value={uid || t.myUid.getting}
-                readOnly
-                className="font-mono text-lg font-bold text-center tracking-widest"
-                style={{
-                  fontSize: '24px',
-                  letterSpacing: '4px',
-                }}
-              />
-              <Button
-                onClick={copyToClipboard}
-                variant="outline"
-                disabled={!uid}
-              >
-                <Copy className="w-4 h-4" />
-              </Button>
+            <div className="flex gap-4 items-start">
+              <div className="flex-1">
+                <div className="flex gap-2">
+                  <Input
+                    value={uid || t.myUid.getting}
+                    readOnly
+                    className="font-mono text-lg font-bold text-center tracking-widest"
+                    style={{
+                      fontSize: '24px',
+                      letterSpacing: '4px',
+                    }}
+                  />
+                  <Button
+                    onClick={copyToClipboard}
+                    variant="outline"
+                    disabled={!uid}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <QRCodeComponent
+                  value={uid || ''}
+                  size={120}
+                  className="border border-gray-200 rounded-lg p-2 bg-white"
+                />
+                <span className="text-xs text-gray-500">{t.myUid.scanToConnect}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -484,6 +601,15 @@ function App() {
         cancelText={t.offerConfirm.reject}
         onConfirm={confirmOffer}
         onCancel={rejectOffer}
+      />
+
+      {/* Toast Notifications */}
+      <Toast
+        message={toastMessage}
+        isVisible={showToast}
+        onClose={() => setShowToast(false)}
+        duration={3000}
+        type={toastType}
       />
     </div>
   );

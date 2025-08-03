@@ -183,8 +183,10 @@ export const useWebRTC = (
     }, []);
 
     const setupDataChannel = useCallback((channel: RTCDataChannel) => {
+        console.log('Setting up data channel:', channel.label, 'state:', channel.readyState);
+
         channel.onopen = () => {
-            console.log('Data channel opened');
+            console.log('Data channel opened:', channel.label);
             setIsConnected(true);
             // 设置当前连接的对方ID
             if (currentTargetRef.current) {
@@ -193,7 +195,7 @@ export const useWebRTC = (
         };
 
         channel.onclose = () => {
-            console.log('Data channel closed');
+            console.log('Data channel closed:', channel.label);
             setIsConnected(false);
             // 清除当前连接的对方ID
             setConnectedPeerId(null);
@@ -273,12 +275,13 @@ export const useWebRTC = (
         pc.onicecandidate = (event) => {
             if (event.candidate && currentTargetRef.current) {
                 // Log ICE candidate for debugging NAT traversal
-                console.log('ICE Candidate:', {
+                console.log('ICE Candidate generated:', {
                     type: event.candidate.type,
                     address: event.candidate.address,
                     port: event.candidate.port,
                     protocol: event.candidate.protocol,
-                    candidate: event.candidate.candidate
+                    candidate: event.candidate.candidate,
+                    target: currentTargetRef.current
                 });
 
                 sendSignalingMessage({
@@ -286,6 +289,8 @@ export const useWebRTC = (
                     to: currentTargetRef.current,
                     data: event.candidate,
                 });
+            } else if (!event.candidate) {
+                console.log('ICE gathering completed');
             }
         };
 
@@ -310,10 +315,12 @@ export const useWebRTC = (
 
         pc.onconnectionstatechange = () => {
             console.log('Connection state:', pc.connectionState);
+            console.log('Current target:', currentTargetRef.current);
             setIsConnected(pc.connectionState === 'connected');
         };
 
         pc.ondatachannel = (event) => {
+            console.log('Data channel received:', event.channel.label);
             const channel = event.channel;
             setupDataChannel(channel);
         };
@@ -534,7 +541,7 @@ export const useWebRTC = (
             // Store the sender as our target for ICE candidates
             currentTargetRef.current = from;
 
-            // Always create a new peer connection for incoming offers
+            // 创建新的peer connection来处理这个offer
             if (pcRef.current) {
                 pcRef.current.close();
             }
@@ -545,8 +552,14 @@ export const useWebRTC = (
             await pc.setRemoteDescription(new RTCSessionDescription(data));
 
             // Process pending ICE candidates
+            console.log('Processing pending ICE candidates, count:', pendingICECandidatesRef.current.length);
             for (const candidate of pendingICECandidatesRef.current) {
-                await pc.addIceCandidate(candidate);
+                try {
+                    await pc.addIceCandidate(candidate);
+                    console.log('Pending ICE candidate added successfully');
+                } catch (error) {
+                    console.error('Failed to add pending ICE candidate:', error);
+                }
             }
             pendingICECandidatesRef.current = [];
 
@@ -617,24 +630,37 @@ export const useWebRTC = (
                         await pcRef.current.setRemoteDescription(new RTCSessionDescription(message.data));
 
                         // Process pending ICE candidates
+                        console.log('Processing pending ICE candidates in answer, count:', pendingICECandidatesRef.current.length);
                         for (const candidate of pendingICECandidatesRef.current) {
-                            await pcRef.current.addIceCandidate(candidate);
+                            try {
+                                await pcRef.current.addIceCandidate(candidate);
+                                console.log('Pending ICE candidate added successfully in answer');
+                            } catch (error) {
+                                console.error('Failed to add pending ICE candidate in answer:', error);
+                            }
                         }
                         pendingICECandidatesRef.current = [];
                         break;
 
                     case 'ice-candidate':
-                        console.log('Received ICE candidate from:', message.from);
+                        console.log('Received ICE candidate from:', message.from, 'candidate:', message.data);
                         if (!pcRef.current) {
-                            console.error('No peer connection available for ICE candidate');
+                            console.log('No peer connection available for ICE candidate, storing for later');
+                            // Store ICE candidate for later when peer connection is created
+                            pendingICECandidatesRef.current.push(new RTCIceCandidate(message.data));
                             return;
                         }
 
                         if (pcRef.current.remoteDescription) {
                             console.log('Adding ICE candidate immediately');
-                            await pcRef.current.addIceCandidate(new RTCIceCandidate(message.data));
+                            try {
+                                await pcRef.current.addIceCandidate(new RTCIceCandidate(message.data));
+                                console.log('ICE candidate added successfully');
+                            } catch (error) {
+                                console.error('Failed to add ICE candidate:', error);
+                            }
                         } else {
-                            console.log('Storing ICE candidate for later');
+                            console.log('Storing ICE candidate for later, pending count:', pendingICECandidatesRef.current.length);
                             // Store ICE candidate for later
                             pendingICECandidatesRef.current.push(new RTCIceCandidate(message.data));
                         }

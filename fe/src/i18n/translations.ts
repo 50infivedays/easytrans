@@ -29,6 +29,7 @@ export interface Translations {
         title: string;
         description: string;
         getting: string;
+        scanToConnect: string;
     };
     connectToPeer: {
         title: string;
@@ -113,6 +114,7 @@ export const translations: Record<string, Translations> = {
             title: "我的用户ID (UID)",
             description: "分享这个6位代码给其他人以建立连接",
             getting: "获取中...",
+            scanToConnect: "扫码连接",
         },
         connectToPeer: {
             title: "连接到对方",
@@ -205,6 +207,7 @@ export const translations: Record<string, Translations> = {
             title: "My User ID (UID)",
             description: "Share this 6-digit code with others to establish connection",
             getting: "Getting...",
+            scanToConnect: "Scan to connect",
         },
         connectToPeer: {
             title: "Connect to Peer",
