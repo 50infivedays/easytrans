@@ -633,6 +633,12 @@ function App() {
         onScan={handleQRScan}
         title={language === 'zh' ? '扫描二维码' : 'Scan QR Code'}
         description={language === 'zh' ? '将二维码对准摄像头进行扫描' : 'Point your camera at the QR code to scan'}
+        onShowToast={(message, type) => {
+          setToastMessage(message);
+          setToastType(type);
+          setShowToast(true);
+        }}
+        language={language}
       />
 
       {/* Toast Notifications */}

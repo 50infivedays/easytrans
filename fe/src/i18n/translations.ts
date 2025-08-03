@@ -42,6 +42,7 @@ export interface Translations {
         debugInfo: string;
         scanQR: string;
         scanSuccess: string;
+        scanSuccessToast: string;
     };
     chat: {
         title: string;
@@ -129,6 +130,7 @@ export const translations: Record<string, Translations> = {
             debugInfo: "调试信息: WebSocket: {wsStatus}, 目标ID: {targetId}, 按钮状态: {buttonStatus}",
             scanQR: "扫描",
             scanSuccess: "二维码扫描成功",
+            scanSuccessToast: "二维码扫描成功！",
         },
         chat: {
             title: "💬 实时聊天 & 📁 文件传输",
@@ -224,6 +226,7 @@ export const translations: Record<string, Translations> = {
             debugInfo: "Debug info: WebSocket: {wsStatus}, Target ID: {targetId}, Button status: {buttonStatus}",
             scanQR: "Scan",
             scanSuccess: "QR code scanned successfully",
+            scanSuccessToast: "QR code scanned successfully!",
         },
         chat: {
             title: "💬 Real-time Chat & 📁 File Transfer",

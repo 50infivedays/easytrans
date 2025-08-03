@@ -10,6 +10,8 @@ interface QRScannerProps {
     onScan: (result: string) => void;
     title?: string;
     description?: string;
+    onShowToast?: (message: string, type: 'success' | 'error' | 'info') => void;
+    language?: string;
 }
 
 export const QRScanner: React.FC<QRScannerProps> = ({
@@ -17,7 +19,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({
     onClose,
     onScan,
     title = '扫描二维码',
-    description = '将二维码对准摄像头进行扫描'
+    description = '将二维码对准摄像头进行扫描',
+    onShowToast,
+    language = 'zh'
 }) => {
     const [isScanning, setIsScanning] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -30,10 +34,17 @@ export const QRScanner: React.FC<QRScannerProps> = ({
         if (detectedCodes.length > 0) {
             const result = detectedCodes[0].rawValue;
             console.log('QR Code scanned:', result);
+            
+            // 显示扫描成功toast
+            if (onShowToast) {
+                const successMessage = language === 'zh' ? '二维码扫描成功！' : 'QR code scanned successfully!';
+                onShowToast(successMessage, 'success');
+            }
+            
             onScan(result);
             onClose();
         }
-    }, [onScan, onClose]);
+    }, [onScan, onClose, onShowToast, language]);
 
     const handleError = useCallback((error: any) => {
         console.error('QR Scanner error:', error);
