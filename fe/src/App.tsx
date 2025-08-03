@@ -341,24 +341,27 @@ function App() {
             <CardDescription>{t.myUid.description}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-4 items-start">
+            <div className="flex flex-col md:flex-row gap-4 items-start">
               <div className="flex-1">
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
                   <Input
                     value={uid || t.myUid.getting}
                     readOnly
-                    className="font-mono text-lg font-bold text-center tracking-widest"
+                    className="font-mono font-bold text-center tracking-widest text-sm md:text-lg lg:text-xl xl:text-2xl"
                     style={{
-                      fontSize: '24px',
-                      letterSpacing: '4px',
+                      letterSpacing: '2px',
+                      minHeight: 'auto',
+                      padding: '8px 12px',
                     }}
                   />
                   <Button
                     onClick={copyToClipboard}
                     variant="outline"
                     disabled={!uid}
+                    className="w-full md:w-auto"
                   >
-                    <Copy className="w-4 h-4" />
+                    <Copy className="w-4 h-4 mr-2" />
+                    {language === 'zh' ? '复制UID' : 'Copy UID'}
                   </Button>
                 </div>
               </div>
@@ -368,7 +371,7 @@ function App() {
                   size={120}
                   className="border border-gray-200 rounded-lg p-2 bg-white"
                 />
-                <span className="text-xs text-gray-500">{t.myUid.scanToConnect}</span>
+                <span className="text-xs text-gray-500 text-center">{t.myUid.scanToConnect}</span>
               </div>
             </div>
           </CardContent>
@@ -385,41 +388,44 @@ function App() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex gap-2">
+              <div className="flex flex-col md:flex-row gap-2">
                 <Input
                   placeholder={t.connectToPeer.placeholder}
                   value={rtcConnected ? (connectedPeerId || '').toUpperCase() : targetId.toUpperCase()}
                   onChange={(e) => setTargetId(e.target.value.toUpperCase())}
                   onKeyPress={(e) => e.key === 'Enter' && handleConnect()}
-                  className="font-mono target-uid-input"
+                  className="font-mono target-uid-input text-sm md:text-base"
                   maxLength={6}
                   readOnly={rtcConnected}
                 />
-                <Button
-                  onClick={handleConnect}
-                  disabled={!targetId.trim() || !wsConnected}
-                >
-                  {!wsConnected ? t.connectToPeer.waiting : !targetId.trim() ? t.connectToPeer.enterUid : t.connectToPeer.connect}
-                </Button>
-                {!rtcConnected && (
+                <div className="flex gap-2">
                   <Button
-                    onClick={() => setShowQRScanner(true)}
-                    variant="outline"
-                    disabled={!wsConnected}
-                    className="flex items-center gap-2"
+                    onClick={handleConnect}
+                    disabled={!targetId.trim() || !wsConnected}
+                    className="flex-1 md:flex-none"
                   >
-                    <QrCode className="w-4 h-4" />
-                    {t.connectToPeer.scanQR}
+                    {!wsConnected ? t.connectToPeer.waiting : !targetId.trim() ? t.connectToPeer.enterUid : t.connectToPeer.connect}
                   </Button>
-                )}
-                {rtcConnected && (
-                  <Button
-                    onClick={disconnectRTC}
-                    variant="destructive"
-                  >
-                    {t.connectToPeer.disconnect}
-                  </Button>
-                )}
+                  {!rtcConnected && (
+                    <Button
+                      onClick={() => setShowQRScanner(true)}
+                      variant="outline"
+                      disabled={!wsConnected}
+                      className="flex items-center gap-2"
+                    >
+                      <QrCode className="w-4 h-4" />
+                      {t.connectToPeer.scanQR}
+                    </Button>
+                  )}
+                  {rtcConnected && (
+                    <Button
+                      onClick={disconnectRTC}
+                      variant="destructive"
+                    >
+                      {t.connectToPeer.disconnect}
+                    </Button>
+                  )}
+                </div>
               </div>
               {/* Debug info */}
               <div className="text-xs text-gray-500">
