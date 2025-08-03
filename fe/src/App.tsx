@@ -4,10 +4,11 @@ import { Input } from './components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
 import { Dialog } from './components/ui/dialog';
 import { QRCodeComponent } from './components/ui/qrcode';
+import { QRScanner } from './components/ui/qrscanner';
 import { Toast } from './components/ui/toast';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useWebRTC } from './hooks/useWebRTC';
-import { Send, Copy, FileUp, Users, Wifi, WifiOff, Download, CheckCircle, AlertCircle } from 'lucide-react';
+import { Send, Copy, FileUp, Users, Wifi, WifiOff, Download, CheckCircle, AlertCircle, QrCode } from 'lucide-react';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import { translations, getBrowserLanguage, formatMessage, Translations } from './i18n/translations';
 import { getWebSocketURL } from './config/api';
@@ -22,6 +23,7 @@ function App() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isInitialMount = useRef(true);
   const hasAttemptedConnection = useRef(false);
@@ -77,6 +79,16 @@ function App() {
     } else {
       console.log('Target ID is empty, cannot connect');
     }
+  };
+
+  const handleQRScan = (result: string) => {
+    console.log('QR Code scanned:', result);
+    // 清理扫描结果，只保留UID部分
+    const cleanResult = result.trim().toUpperCase();
+    setTargetId(cleanResult);
+    setShowToast(true);
+    setToastMessage(t.connectToPeer.scanSuccess);
+    setToastType('success');
   };
 
   const handleSendMessage = () => {
@@ -389,6 +401,17 @@ function App() {
                 >
                   {!wsConnected ? t.connectToPeer.waiting : !targetId.trim() ? t.connectToPeer.enterUid : t.connectToPeer.connect}
                 </Button>
+                {!rtcConnected && (
+                  <Button
+                    onClick={() => setShowQRScanner(true)}
+                    variant="outline"
+                    disabled={!wsConnected}
+                    className="flex items-center gap-2"
+                  >
+                    <QrCode className="w-4 h-4" />
+                    {t.connectToPeer.scanQR}
+                  </Button>
+                )}
                 {rtcConnected && (
                   <Button
                     onClick={disconnectRTC}
@@ -601,6 +624,15 @@ function App() {
         cancelText={t.offerConfirm.reject}
         onConfirm={confirmOffer}
         onCancel={rejectOffer}
+      />
+
+      {/* QR Scanner */}
+      <QRScanner
+        isOpen={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onScan={handleQRScan}
+        title={language === 'zh' ? '扫描二维码' : 'Scan QR Code'}
+        description={language === 'zh' ? '将二维码对准摄像头进行扫描' : 'Point your camera at the QR code to scan'}
       />
 
       {/* Toast Notifications */}

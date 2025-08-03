@@ -9,8 +9,10 @@ interface DialogProps {
     description: string;
     confirmText?: string;
     cancelText?: string;
-    onConfirm: () => void;
-    onCancel: () => void;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+    children?: React.ReactNode;
+    showActions?: boolean;
 }
 
 export const Dialog: React.FC<DialogProps> = ({
@@ -22,16 +24,18 @@ export const Dialog: React.FC<DialogProps> = ({
     cancelText = '取消',
     onConfirm,
     onCancel,
+    children,
+    showActions = true,
 }) => {
     if (!isOpen) return null;
 
     const handleConfirm = () => {
-        onConfirm();
+        onConfirm?.();
         onClose();
     };
 
     const handleCancel = () => {
-        onCancel();
+        onCancel?.();
         onClose();
     };
 
@@ -44,14 +48,19 @@ export const Dialog: React.FC<DialogProps> = ({
                         <CardDescription>{description}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="flex gap-2 justify-end">
-                            <Button variant="outline" onClick={handleCancel}>
-                                {cancelText}
-                            </Button>
-                            <Button onClick={handleConfirm}>
-                                {confirmText}
-                            </Button>
-                        </div>
+                        {children}
+                        {showActions && (
+                            <div className="flex gap-2 justify-end mt-4">
+                                <Button variant="outline" onClick={handleCancel}>
+                                    {cancelText}
+                                </Button>
+                                {onConfirm && (
+                                    <Button onClick={handleConfirm}>
+                                        {confirmText}
+                                    </Button>
+                                )}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>
