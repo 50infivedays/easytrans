@@ -211,7 +211,7 @@ export const useWebSocket = (url: string): UseWebSocketReturn => {
                 wsRef.current = null;
             }
         };
-    }, []); // 只在挂载时执行一次
+    }, [connect, clearReconnectTimeout]); // 只在挂载时执行一次
 
     // 当URL改变时重新连接
     useEffect(() => {

@@ -2,18 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { ENV, DEV_CONFIG } from '../config/environment';
+import { ENV } from '../config/environment';
 import { ENV_INFO } from '../config/api';
 
 // 调试面板组件 - 仅在开发环境显示
 const DebugPanel: React.FC = () => {
     const [isVisible, setIsVisible] = useState(false);
     const [debugInfo, setDebugInfo] = useState<any>(null);
-
-    // 仅在开发环境渲染
-    if (!ENV.isDevelopment) {
-        return null;
-    }
 
     const toggleVisibility = () => {
         setIsVisible(!isVisible);
@@ -35,6 +30,11 @@ const DebugPanel: React.FC = () => {
             fetchDebugInfo();
         }
     }, [isVisible]);
+
+    // 仅在开发环境渲染
+    if (!ENV.isDevelopment) {
+        return null;
+    }
 
     return (
         <div className="fixed bottom-4 right-4 z-50">

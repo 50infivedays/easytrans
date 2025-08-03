@@ -49,54 +49,7 @@ export const useWebRTC = (
 
 
 
-    const setupDataChannel = useCallback((channel: RTCDataChannel) => {
-        channel.onopen = () => {
-            console.log('Data channel opened');
-            setIsConnected(true);
-        };
 
-        channel.onclose = () => {
-            console.log('Data channel closed');
-            setIsConnected(false);
-        };
-
-        channel.onmessage = (event) => {
-            try {
-                // Check if it's a binary message (file chunk)
-                if (event.data instanceof ArrayBuffer) {
-                    handleFileChunk(event.data);
-                    return;
-                }
-
-                // Handle text messages
-                const data = JSON.parse(event.data);
-
-                if (data.type === 'text') {
-                    const message: ChatMessage = {
-                        id: Date.now().toString(),
-                        text: data.text,
-                        sender: 'peer',
-                        timestamp: new Date(),
-                        type: 'text',
-                    };
-                    setMessages(prev => [...prev, message]);
-                } else if (data.type === 'file-start') {
-                    // Handle file transfer start
-                    handleFileTransferStart(data);
-                } else if (data.type === 'file-chunk') {
-                    // Handle file chunk info (not the actual chunk)
-                    handleFileChunkInfo(data);
-                } else if (data.type === 'file-end') {
-                    // Handle file transfer end
-                    handleFileTransferEnd(data);
-                }
-            } catch (error) {
-                console.error('Error parsing data channel message:', error);
-            }
-        };
-
-        dataChannelRef.current = channel;
-    }, []);
 
     const handleFileTransferStart = useCallback((data: any) => {
         const transferId = data.transferId;
@@ -213,6 +166,55 @@ export const useWebRTC = (
             receivingFilesRef.current.delete(transferId);
         }
     }, []);
+
+    const setupDataChannel = useCallback((channel: RTCDataChannel) => {
+        channel.onopen = () => {
+            console.log('Data channel opened');
+            setIsConnected(true);
+        };
+
+        channel.onclose = () => {
+            console.log('Data channel closed');
+            setIsConnected(false);
+        };
+
+        channel.onmessage = (event) => {
+            try {
+                // Check if it's a binary message (file chunk)
+                if (event.data instanceof ArrayBuffer) {
+                    handleFileChunk(event.data);
+                    return;
+                }
+
+                // Handle text messages
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'text') {
+                    const message: ChatMessage = {
+                        id: Date.now().toString(),
+                        text: data.text,
+                        sender: 'peer',
+                        timestamp: new Date(),
+                        type: 'text',
+                    };
+                    setMessages(prev => [...prev, message]);
+                } else if (data.type === 'file-start') {
+                    // Handle file transfer start
+                    handleFileTransferStart(data);
+                } else if (data.type === 'file-chunk') {
+                    // Handle file chunk info (not the actual chunk)
+                    handleFileChunkInfo(data);
+                } else if (data.type === 'file-end') {
+                    // Handle file transfer end
+                    handleFileTransferEnd(data);
+                }
+            } catch (error) {
+                console.error('Error parsing data channel message:', error);
+            }
+        };
+
+        dataChannelRef.current = channel;
+    }, [handleFileChunk, handleFileTransferStart, handleFileChunkInfo, handleFileTransferEnd]);
 
     const createPeerConnection = useCallback(() => {
         // Create WebRTC configuration
