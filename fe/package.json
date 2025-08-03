@@ -2,6 +2,7 @@
   "name": "fe",
   "version": "0.1.0",
   "private": true,
+  "proxy": "https://api.eztrans.online",
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-tabs": "^1.1.12",

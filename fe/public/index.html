@@ -1,63 +1,123 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#3B82F6" />
-    
-    <!-- SEO Meta Tags -->
-    <title>EasyTrans - 隐私安全的P2P文件传输和聊天工具</title>
-    <meta name="description" content="EasyTrans是一款基于WebRTC的隐私安全文件传输工具，支持P2P直连、端到端加密、实时聊天、消息发送和文件共享，无需服务器中转，保护您的隐私安全。" />
-    <meta name="keywords" content="文件传输,隐私安全,P2P传输,WebRTC,端到端加密,聊天工具,消息发送,文件共享,安全传输,在线传输" />
-    <meta name="author" content="EasyTrans" />
-    
-    <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content="EasyTrans - 隐私安全的P2P文件传输和聊天工具" />
-    <meta property="og:description" content="基于WebRTC的隐私安全文件传输工具，支持P2P直连、端到端加密、实时聊天和文件共享" />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://eztrans.online" />
-    <meta property="og:image" content="%PUBLIC_URL%/logo512.png" />
-    
-    <!-- Twitter Card Meta Tags -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="EasyTrans - 隐私安全的P2P文件传输和聊天工具" />
-    <meta name="twitter:description" content="基于WebRTC的隐私安全文件传输工具，支持P2P直连、端到端加密、实时聊天和文件共享" />
-    <meta name="twitter:image" content="%PUBLIC_URL%/logo512.png" />
-    
-    <!-- Additional SEO Meta Tags -->
-    <meta name="robots" content="index, follow" />
-    <meta name="language" content="zh-CN" />
-    <meta name="revisit-after" content="7 days" />
-    <meta name="distribution" content="global" />
-    <meta name="rating" content="general" />
-    
-    <!-- Security Meta Tags -->
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="X-Frame-Options" content="DENY" />
-    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
-    <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
-    
-    <!-- Privacy and Security Features Description -->
-    <meta name="application-name" content="EasyTrans" />
-    <meta name="apple-mobile-web-app-title" content="EasyTrans" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    
-    <!-- Preconnect to improve performance -->
-    <link rel="preconnect" href="https://api.eztrans.online" />
-    <link rel="dns-prefetch" href="https://api.eztrans.online" />
-    
-    <!-- Structured Data for SEO -->
-    <script type="application/ld+json">
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#3B82F6" />
+
+  <!-- SEO Meta Tags -->
+  <title>EasyTrans - Privacy-Safe P2P File Transfer and Chat Tool</title>
+  <meta name="description"
+    content="EasyTrans is a WebRTC-based privacy-safe file transfer tool that supports P2P direct connection, end-to-end encryption, real-time chat, message sending and file sharing, without server relay, protecting your privacy and security. Provides online transfer and easy transfer services." />
+  <meta name="keywords"
+    content="file transfer,privacy safe,P2P transfer,WebRTC,end-to-end encryption,chat tool,message sending,file sharing,secure transfer,online transfer,online transfer service,easy transfer" />
+  <meta name="author" content="EasyTrans" />
+
+  <!-- Chinese SEO Meta Tags -->
+  <meta name="description" lang="zh-CN"
+    content="EasyTrans是一款基于WebRTC的隐私安全文件传输工具，支持P2P直连、端到端加密、实时聊天、消息发送和文件共享，无需服务器中转，保护您的隐私安全。提供在线传和轻松传服务。" />
+  <meta name="keywords" lang="zh-CN" content="文件传输,隐私安全,P2P传输,WebRTC,端到端加密,聊天工具,消息发送,文件共享,安全传输,在线传输,在线传,轻松传" />
+
+  <!-- Open Graph Meta Tags -->
+  <meta property="og:title" content="EasyTrans - Privacy-Safe P2P File Transfer and Chat Tool" />
+  <meta property="og:description"
+    content="WebRTC-based privacy-safe file transfer tool that supports P2P direct connection, end-to-end encryption, real-time chat and file sharing, provides online transfer and easy transfer services" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:locale:alternate" content="zh_CN" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://eztrans.online" />
+  <meta property="og:image" content="%PUBLIC_URL%/logo512.png" />
+
+  <!-- Twitter Card Meta Tags -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="EasyTrans - Privacy-Safe P2P File Transfer and Chat Tool" />
+  <meta name="twitter:description"
+    content="WebRTC-based privacy-safe file transfer tool that supports P2P direct connection, end-to-end encryption, real-time chat and file sharing, provides online transfer and easy transfer services" />
+  <meta name="twitter:image" content="%PUBLIC_URL%/logo512.png" />
+
+  <!-- Additional SEO Meta Tags -->
+  <meta name="robots" content="index, follow" />
+  <meta name="language" content="en" />
+  <meta name="revisit-after" content="7 days" />
+  <meta name="distribution" content="global" />
+  <meta name="rating" content="general" />
+
+  <!-- Language Alternates -->
+  <link rel="alternate" hreflang="en" href="https://eztrans.online" />
+  <link rel="alternate" hreflang="zh-CN" href="https://eztrans.online" />
+  <link rel="alternate" hreflang="x-default" href="https://eztrans.online" />
+
+  <!-- Security Meta Tags -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta http-equiv="X-Frame-Options" content="DENY" />
+  <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+
+  <!-- Privacy and Security Features Description -->
+  <meta name="application-name" content="EasyTrans" />
+  <meta name="apple-mobile-web-app-title" content="EasyTrans" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+  <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+  <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+  <!-- Preconnect to improve performance -->
+  <link rel="preconnect" href="https://api.eztrans.online" />
+  <link rel="dns-prefetch" href="https://api.eztrans.online" />
+
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-SF9EWZDX5Q"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+
+    gtag('config', 'G-SF9EWZDX5Q');
+  </script>
+
+  <!-- Structured Data for SEO (English) -->
+  <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
       "name": "EasyTrans",
-      "description": "基于WebRTC的隐私安全文件传输工具，支持P2P直连、端到端加密、实时聊天和文件共享",
+      "description": "WebRTC-based privacy-safe file transfer tool that supports P2P direct connection, end-to-end encryption, real-time chat and file sharing, provides online transfer and easy transfer services",
+      "url": "https://eztrans.online",
+      "applicationCategory": "CommunicationApplication",
+      "operatingSystem": "Web Browser",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "P2P File Transfer",
+        "End-to-End Encryption",
+        "Real-Time Chat",
+        "Message Sending",
+        "Privacy Security",
+        "No Server Relay",
+        "WebRTC Technology",
+        "Online Transfer",
+        "Easy Transfer"
+      ],
+      "author": {
+        "@type": "Organization",
+        "name": "EasyTrans"
+      }
+    }
+    </script>
+
+  <!-- Structured Data for SEO (Chinese) -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "EasyTrans",
+      "description": "基于WebRTC的隐私安全文件传输工具，支持P2P直连、端到端加密、实时聊天和文件共享，提供在线传和轻松传服务",
       "url": "https://eztrans.online",
       "applicationCategory": "CommunicationApplication",
       "operatingSystem": "Web Browser",
@@ -73,7 +133,9 @@
         "消息发送",
         "隐私安全",
         "无需服务器中转",
-        "WebRTC技术"
+        "WebRTC技术",
+        "在线传",
+        "轻松传"
       ],
       "author": {
         "@type": "Organization",
@@ -81,9 +143,13 @@
       }
     }
     </script>
-  </head>
-  <body>
-    <noscript>您需要启用JavaScript才能运行此应用程序。EasyTrans是一款基于WebRTC的隐私安全文件传输工具，支持P2P直连、端到端加密、实时聊天和文件共享功能。</noscript>
-    <div id="root"></div>
-  </body>
+</head>
+
+<body>
+  <noscript>You need to enable JavaScript to run this application. EasyTrans is a WebRTC-based privacy-safe file
+    transfer tool that supports P2P direct connection, end-to-end encryption, real-time chat and file sharing features,
+    provides online transfer and easy transfer services.</noscript>
+  <div id="root"></div>
+</body>
+
 </html>

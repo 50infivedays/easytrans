@@ -7,18 +7,8 @@ import { useWebRTC } from './hooks/useWebRTC';
 import { Send, Copy, FileUp, Users, Wifi, WifiOff, Download, CheckCircle, AlertCircle } from 'lucide-react';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import { translations, getBrowserLanguage, formatMessage, Translations } from './i18n/translations';
-
-// 根据环境自动选择WebSocket URL
-const getWebSocketURL = () => {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const isProduction = window.location.hostname !== 'localhost';
-
-  if (isProduction) {
-    return 'wss://api.eztrans.online/ws';
-  } else {
-    return 'ws://localhost:8080/ws';
-  }
-};
+import { getWebSocketURL } from './config/api';
+import DebugPanel from './components/DebugPanel';
 
 const WEBSOCKET_URL = getWebSocketURL();
 
@@ -473,6 +463,9 @@ function App() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Debug Panel - 仅在开发环境显示 */}
+      <DebugPanel />
     </div>
   );
 }
