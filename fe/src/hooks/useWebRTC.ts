@@ -28,6 +28,13 @@ export interface UseWebRTCReturn {
     sendMessage: (text: string) => void;
     sendFile: (file: File) => void;
     disconnect: () => void;
+    // 新增确认框相关状态
+    showOfferConfirm: boolean;
+    offerFrom: string | null;
+    confirmOffer: () => void;
+    rejectOffer: () => void;
+    // 新增当前连接的对方ID
+    connectedPeerId: string | null;
 }
 
 export const useWebRTC = (
@@ -37,6 +44,14 @@ export const useWebRTC = (
     const [isConnected, setIsConnected] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [fileTransfers, setFileTransfers] = useState<FileTransfer[]>([]);
+
+    // 新增确认框状态
+    const [showOfferConfirm, setShowOfferConfirm] = useState(false);
+    const [offerFrom, setOfferFrom] = useState<string | null>(null);
+    const pendingOfferRef = useRef<{ from: string; data: any } | null>(null);
+
+    // 新增当前连接的对方ID状态
+    const [connectedPeerId, setConnectedPeerId] = useState<string | null>(null);
 
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const dataChannelRef = useRef<RTCDataChannel | null>(null);
@@ -171,11 +186,17 @@ export const useWebRTC = (
         channel.onopen = () => {
             console.log('Data channel opened');
             setIsConnected(true);
+            // 设置当前连接的对方ID
+            if (currentTargetRef.current) {
+                setConnectedPeerId(currentTargetRef.current);
+            }
         };
 
         channel.onclose = () => {
             console.log('Data channel closed');
             setIsConnected(false);
+            // 清除当前连接的对方ID
+            setConnectedPeerId(null);
         };
 
         channel.onmessage = (event) => {
@@ -493,7 +514,76 @@ export const useWebRTC = (
         }
         currentTargetRef.current = null;
         setIsConnected(false);
+        setConnectedPeerId(null);
     }, []);
+
+    // 确认offer的处理函数
+    const confirmOffer = useCallback(async () => {
+        if (!pendingOfferRef.current) return;
+
+        const { from, data } = pendingOfferRef.current;
+        console.log('User confirmed offer from:', from);
+
+        // 清除确认框状态
+        setShowOfferConfirm(false);
+        setOfferFrom(null);
+        pendingOfferRef.current = null;
+
+        // 处理offer
+        try {
+            // Store the sender as our target for ICE candidates
+            currentTargetRef.current = from;
+
+            // Always create a new peer connection for incoming offers
+            if (pcRef.current) {
+                pcRef.current.close();
+            }
+            pcRef.current = createPeerConnection();
+            const pc = pcRef.current;
+
+            console.log('Setting remote description from offer...');
+            await pc.setRemoteDescription(new RTCSessionDescription(data));
+
+            // Process pending ICE candidates
+            for (const candidate of pendingICECandidatesRef.current) {
+                await pc.addIceCandidate(candidate);
+            }
+            pendingICECandidatesRef.current = [];
+
+            console.log('Creating answer...');
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            console.log('Sending answer to:', from);
+            sendSignalingMessage({
+                type: 'answer',
+                to: from,
+                data: answer,
+            });
+        } catch (error) {
+            console.error('Error handling confirmed offer:', error);
+        }
+    }, [createPeerConnection, sendSignalingMessage]);
+
+    // 拒绝offer的处理函数
+    const rejectOffer = useCallback(() => {
+        if (!pendingOfferRef.current) return;
+
+        const { from } = pendingOfferRef.current;
+        console.log('User rejected offer from:', from);
+
+        // 清除确认框状态
+        setShowOfferConfirm(false);
+        setOfferFrom(null);
+        pendingOfferRef.current = null;
+
+        // 发送拒绝消息
+        sendSignalingMessage({
+            type: 'offer-rejected',
+            to: from,
+            data: { reason: 'User rejected the connection offer' }
+        });
+    }, [sendSignalingMessage]);
 
     // Handle signaling messages
     useEffect(() => {
@@ -506,35 +596,14 @@ export const useWebRTC = (
                 switch (message.type) {
                     case 'offer':
                         console.log('Received offer from:', message.from);
-                        // Store the sender as our target for ICE candidates
-                        currentTargetRef.current = message.from!;
 
-                        // Always create a new peer connection for incoming offers
-                        if (pcRef.current) {
-                            pcRef.current.close();
-                        }
-                        pcRef.current = createPeerConnection();
-                        const pc = pcRef.current;
-
-                        console.log('Setting remote description from offer...');
-                        await pc.setRemoteDescription(new RTCSessionDescription(message.data));
-
-                        // Process pending ICE candidates
-                        for (const candidate of pendingICECandidatesRef.current) {
-                            await pc.addIceCandidate(candidate);
-                        }
-                        pendingICECandidatesRef.current = [];
-
-                        console.log('Creating answer...');
-                        const answer = await pc.createAnswer();
-                        await pc.setLocalDescription(answer);
-
-                        console.log('Sending answer to:', message.from);
-                        sendSignalingMessage({
-                            type: 'answer',
-                            to: message.from!,
-                            data: answer,
-                        });
+                        // 显示确认框而不是直接处理offer
+                        setShowOfferConfirm(true);
+                        setOfferFrom(message.from!);
+                        pendingOfferRef.current = {
+                            from: message.from!,
+                            data: message.data
+                        };
                         break;
 
                     case 'answer':
@@ -595,5 +664,10 @@ export const useWebRTC = (
         sendMessage,
         sendFile,
         disconnect,
+        showOfferConfirm,
+        offerFrom,
+        confirmOffer,
+        rejectOffer,
+        connectedPeerId,
     };
 }; 

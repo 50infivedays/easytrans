@@ -72,6 +72,12 @@ export interface Translations {
         security: string;
         securityPoints: string[];
     };
+    offerConfirm: {
+        title: string;
+        description: string;
+        accept: string;
+        reject: string;
+    };
     language: string;
 }
 
@@ -160,6 +166,12 @@ export const translations: Record<string, Translations> = {
                 "支持任意大小文件传输，无限制",
             ],
         },
+        offerConfirm: {
+            title: "连接请求",
+            description: "用户 {from} 请求与您建立连接，是否接受？",
+            accept: "接受",
+            reject: "拒绝",
+        },
         language: "语言",
     },
     en: {
@@ -245,6 +257,12 @@ export const translations: Record<string, Translations> = {
                 "Chat messages are encrypted in real-time for privacy protection",
                 "Supports file transfer of any size without limits",
             ],
+        },
+        offerConfirm: {
+            title: "Connection Request",
+            description: "User {from} is requesting to connect with you. Accept?",
+            accept: "Accept",
+            reject: "Reject",
         },
         language: "Language",
     },

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
+import { Dialog } from './components/ui/dialog';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useWebRTC } from './hooks/useWebRTC';
 import { Send, Copy, FileUp, Users, Wifi, WifiOff, Download, CheckCircle, AlertCircle } from 'lucide-react';
@@ -44,7 +45,12 @@ function App() {
     connect: connectRTC,
     sendMessage: sendRTCMessage,
     sendFile,
-    disconnect: disconnectRTC
+    disconnect: disconnectRTC,
+    showOfferConfirm,
+    offerFrom,
+    confirmOffer,
+    rejectOffer,
+    connectedPeerId
   } = useWebRTC(sendWsMessage, lastMessage);
 
   // 获取当前语言的翻译
@@ -253,11 +259,12 @@ function App() {
               <div className="flex gap-2">
                 <Input
                   placeholder={t.connectToPeer.placeholder}
-                  value={targetId.toUpperCase()}
+                  value={rtcConnected ? (connectedPeerId || '').toUpperCase() : targetId.toUpperCase()}
                   onChange={(e) => setTargetId(e.target.value.toUpperCase())}
                   onKeyPress={(e) => e.key === 'Enter' && handleConnect()}
                   className="font-mono target-uid-input"
                   maxLength={6}
+                  readOnly={rtcConnected}
                 />
                 <Button
                   onClick={handleConnect}
@@ -466,6 +473,18 @@ function App() {
 
       {/* Debug Panel - 仅在开发环境显示 */}
       <DebugPanel />
+
+      {/* Offer Confirmation Dialog */}
+      <Dialog
+        isOpen={showOfferConfirm}
+        onClose={() => { }} // 不允许通过点击背景关闭
+        title={t.offerConfirm.title}
+        description={formatMessage(t.offerConfirm.description, { from: offerFrom || '' })}
+        confirmText={t.offerConfirm.accept}
+        cancelText={t.offerConfirm.reject}
+        onConfirm={confirmOffer}
+        onCancel={rejectOffer}
+      />
     </div>
   );
 }
