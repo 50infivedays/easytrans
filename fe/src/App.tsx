@@ -29,7 +29,7 @@ function App() {
   const hasAttemptedConnection = useRef(false);
   const previousConnectionState = useRef<boolean | null>(null);
 
-  // 初始化语言设置
+  // 初始化语言设置 - 默认使用英文，只有在检测到中文时才使用中文
   useEffect(() => {
     const savedLanguage = localStorage.getItem('easytrans-language');
     if (savedLanguage) {
@@ -655,6 +655,43 @@ function App() {
         duration={3000}
         type={toastType}
       />
+
+      {/* Footer */}
+      <footer className="mt-8 py-6 border-t border-gray-200 bg-gray-50">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+            <div className="text-sm text-gray-600">
+              <p>© 2024 EasyTrans. {t.footer.allRightsReserved}</p>
+            </div>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <a
+                href="/privacy-policy.html"
+                className="text-blue-600 hover:text-blue-800 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t.footer.privacyPolicy}
+              </a>
+              <a
+                href="/terms-of-service.html"
+                className="text-blue-600 hover:text-blue-800 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t.footer.termsOfService}
+              </a>
+              <a
+                href="/copyright.html"
+                className="text-blue-600 hover:text-blue-800 transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t.footer.copyright}
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

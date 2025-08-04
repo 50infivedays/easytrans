@@ -82,6 +82,12 @@ export interface Translations {
         accept: string;
         reject: string;
     };
+    footer: {
+        allRightsReserved: string;
+        privacyPolicy: string;
+        termsOfService: string;
+        copyright: string;
+    };
     language: string;
 }
 
@@ -180,6 +186,12 @@ export const translations: Record<string, Translations> = {
             accept: "接受",
             reject: "拒绝",
         },
+        footer: {
+            allRightsReserved: "保留所有权利",
+            privacyPolicy: "隐私政策",
+            termsOfService: "服务条款",
+            copyright: "版权声明",
+        },
         language: "语言",
     },
     en: {
@@ -276,12 +288,19 @@ export const translations: Record<string, Translations> = {
             accept: "Accept",
             reject: "Reject",
         },
+        footer: {
+            allRightsReserved: "All rights reserved",
+            privacyPolicy: "Privacy Policy",
+            termsOfService: "Terms of Service",
+            copyright: "Copyright",
+        },
         language: "Language",
     },
 };
 
 export const getBrowserLanguage = (): string => {
     const language = navigator.language || navigator.languages?.[0] || 'en';
+    // 默认使用英文，只有在检测到中文时才使用中文
     return language.startsWith('zh') ? 'zh' : 'en';
 };
 
