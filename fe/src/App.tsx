@@ -661,7 +661,7 @@ function App() {
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-sm text-gray-600">
-              <p>© 2024 EasyTrans. {t.footer.allRightsReserved}</p>
+              <p>© 2025 EasyTrans. {t.footer.allRightsReserved}</p>
             </div>
             <div className="flex flex-wrap gap-4 text-sm">
               <a
