@@ -5,14 +5,9 @@ Allow: /
 # Sitemap
 Sitemap: https://eztrans.online/sitemap.xml
 
-# Crawl-delay for all bots
-Crawl-delay: 1
+# Allow all bots to crawl freely
+# No crawl-delay restrictions
+# No disallow restrictions
 
-# Disallow specific paths (if any)
-# Disallow: /admin/
-# Disallow: /private/
-
-# Allow important pages
-Allow: /privacy-policy.html
-Allow: /terms-of-service.html
-Allow: /copyright.html
+# Important pages are already allowed by "Allow: /"
+# All pages are accessible to all search engines
