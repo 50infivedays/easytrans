@@ -94,7 +94,7 @@ export interface Translations {
 export const translations: Record<string, Translations> = {
     zh: {
         title: "EasyTrans",
-        subtitle: "基于WebRTC的隐私安全的文件和文本传输",
+        subtitle: "隐私安全的传文件, 传文本",
         features: {
             privacy: "🔒 隐私安全",
             privacyDesc: "端到端加密",
@@ -196,7 +196,7 @@ export const translations: Record<string, Translations> = {
     },
     en: {
         title: "EasyTrans",
-        subtitle: "Privacy-focused P2P file and text transfer based on WebRTC",
+        subtitle: "Privacy-safe file transfer, text transfer",
         features: {
             privacy: "🔒 Privacy & Security",
             privacyDesc: "End-to-end encryption",
