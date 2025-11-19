@@ -63,9 +63,6 @@ export const useWebRTC = (
     const receivingFilesRef = useRef<Map<string, { chunks: ArrayBuffer[], receivedSize: number, totalSize: number, fileName: string }>>(new Map());
 
 
-
-
-
     const handleFileTransferStart = useCallback((data: any) => {
         const transferId = data.transferId;
         const fileName = data.fileName;
@@ -98,7 +95,7 @@ export const useWebRTC = (
         const chunkIndex = data.chunkIndex;
         const totalChunks = data.totalChunks;
 
-        console.log('File chunk info:', { transferId, chunkIndex, totalChunks });
+        // console.log('File chunk info:', { transferId, chunkIndex, totalChunks });
 
         // Update progress
         setFileTransfers(prev => prev.map(transfer => {
@@ -340,8 +337,6 @@ export const useWebRTC = (
             return;
         }
 
-
-
         // Store the target ID for ICE candidates
         currentTargetRef.current = targetId;
 
@@ -392,6 +387,8 @@ export const useWebRTC = (
                 sender: 'me',
                 timestamp: new Date(),
                 type: 'text',
+                fileName: undefined,
+                fileSize: undefined,
             };
             setMessages(prev => [...prev, message]);
         }
@@ -516,6 +513,16 @@ export const useWebRTC = (
 
     const disconnect = useCallback(() => {
         console.log('Disconnecting WebRTC connection');
+
+        // 显式发送断开消息
+        if (currentTargetRef.current && sendSignalingMessage) {
+            sendSignalingMessage({
+                type: 'disconnect',
+                to: currentTargetRef.current,
+                data: {}
+            });
+        }
+
         if (dataChannelRef.current) {
             dataChannelRef.current.close();
             dataChannelRef.current = null;
@@ -524,10 +531,17 @@ export const useWebRTC = (
             pcRef.current.close();
             pcRef.current = null;
         }
+
         currentTargetRef.current = null;
         setIsConnected(false);
         setConnectedPeerId(null);
-    }, []);
+
+        // 清理pending状态
+        pendingICECandidatesRef.current = [];
+        pendingOfferRef.current = null;
+        setShowOfferConfirm(false);
+        setOfferFrom(null);
+    }, [sendSignalingMessage]);
 
     // 确认offer的处理函数
     const confirmOffer = useCallback(async () => {
@@ -594,6 +608,8 @@ export const useWebRTC = (
         setShowOfferConfirm(false);
         setOfferFrom(null);
         pendingOfferRef.current = null;
+        // 清除 pending candidates
+        pendingICECandidatesRef.current = [];
 
         // 发送拒绝消息
         sendSignalingMessage({
@@ -612,8 +628,35 @@ export const useWebRTC = (
         const handleSignalingMessage = async () => {
             try {
                 switch (message.type) {
+                    case 'disconnect':
+                        console.log('Received disconnect signal from:', message.from);
+                        // 对方主动断开，清理本地连接
+                        if (pcRef.current) {
+                            pcRef.current.close();
+                            pcRef.current = null;
+                        }
+                        if (dataChannelRef.current) {
+                            dataChannelRef.current.close();
+                            dataChannelRef.current = null;
+                        }
+                        currentTargetRef.current = null;
+                        setIsConnected(false);
+                        setConnectedPeerId(null);
+                        pendingICECandidatesRef.current = [];
+                        break;
+
                     case 'offer':
                         console.log('Received offer from:', message.from);
+
+                        // 如果有正在进行的连接，先清理
+                        if (pcRef.current) {
+                            console.log('Closing existing connection for new offer');
+                            pcRef.current.close();
+                            pcRef.current = null;
+                            setIsConnected(false);
+                            setConnectedPeerId(null);
+                        }
+                        pendingICECandidatesRef.current = [];
 
                         // 显示确认框而不是直接处理offer
                         setShowOfferConfirm(true);
@@ -649,6 +692,14 @@ export const useWebRTC = (
 
                     case 'ice-candidate':
                         console.log('Received ICE candidate from:', message.from, 'candidate:', message.data);
+
+                        // 如果正在等待确认Offer，将candidate存入pending队列
+                        if (pendingOfferRef.current && pendingOfferRef.current.from === message.from) {
+                            console.log('Caching ICE candidate for pending offer');
+                            pendingICECandidatesRef.current.push(new RTCIceCandidate(message.data));
+                            return;
+                        }
+
                         if (!pcRef.current) {
                             console.log('No peer connection available for ICE candidate, storing for later');
                             // Store ICE candidate for later when peer connection is created
@@ -681,11 +732,18 @@ export const useWebRTC = (
         handleSignalingMessage();
     }, [lastSignalingMessage, createPeerConnection, sendSignalingMessage]);
 
+    // 注意：不要在 useEffect cleanup 中调用 disconnect，因为会导致刷新页面时发送断开消息
+    // 或者状态更新导致的不必要的断开
+    // 这里我们只在组件卸载时不做特殊处理，因为页面卸载会导致 WebSocket 断开，
+    // 但如果为了优雅退出，可以保留。
     useEffect(() => {
         return () => {
-            disconnect();
+            // 组件卸载时的清理，通常不需要发送网络请求，因为 socket 可能已经断了
+            if (pcRef.current) {
+                pcRef.current.close();
+            }
         };
-    }, [disconnect]);
+    }, []);
 
     return {
         isConnected,
@@ -701,4 +759,4 @@ export const useWebRTC = (
         rejectOffer,
         connectedPeerId,
     };
-}; 
+};

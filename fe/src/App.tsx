@@ -25,6 +25,8 @@ function App() {
   const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
   const [showQRScanner, setShowQRScanner] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatCardRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
   const isInitialMount = useRef(true);
   const hasAttemptedConnection = useRef(false);
   const previousConnectionState = useRef<boolean | null>(null);
@@ -197,6 +199,21 @@ function App() {
     previousConnectionState.current = rtcConnected;
   }, [rtcConnected, showConnectionToast]);
 
+  // 当连接成功时，自动滚动到聊天区域并聚焦输入框
+  useEffect(() => {
+    if (rtcConnected) {
+      // 稍微延迟以确保 DOM 已渲染
+      setTimeout(() => {
+        if (chatCardRef.current) {
+          chatCardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        if (chatInputRef.current) {
+          chatInputRef.current.focus();
+        }
+      }, 300);
+    }
+  }, [rtcConnected]);
+
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString(language === 'zh' ? 'zh-CN' : 'en-US', {
       hour: '2-digit',
@@ -230,12 +247,15 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="min-h-screen p-4 md:p-8">
+      <div className="max-w-4xl mx-auto space-y-8">
         {/* Header with Language Switcher */}
-        <div className="text-center relative">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{t.title}</h1>
-          <p className="text-sm md:text-base text-gray-600 mb-4">{t.subtitle}</p>
+        <div className="text-center relative py-4">
+          <div className="inline-flex items-center justify-center p-3 mb-4 rounded-2xl bg-white/60 shadow-sm ring-1 ring-white/50">
+            <Wifi className="w-8 h-8 text-primary" />
+          </div>
+          <h1 className="text-3xl md:text-4xl font-extrabold text-slate-800 mb-3 tracking-tight drop-shadow-sm">{t.title}</h1>
+          <p className="text-base md:text-lg text-slate-600 mb-8 max-w-2xl mx-auto leading-relaxed">{t.subtitle}</p>
 
           {/* Language Switcher - positioned below title on mobile */}
           <div className="flex justify-center mb-4 md:hidden">
@@ -254,40 +274,43 @@ function App() {
           </div>
 
           {/* 功能特性展示 */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6">
-            <div className="text-center p-2 md:p-3 bg-blue-50 rounded-lg">
-              <div className="text-blue-600 font-semibold text-xs md:text-sm">{t.features.privacy}</div>
-              <div className="text-xs text-gray-600 hidden md:block">{t.features.privacyDesc}</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
+            <div className="text-center p-4 rounded-xl bg-white/80 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 group">
+              <div className="text-primary font-bold text-sm md:text-base mb-1 group-hover:scale-105 transition-transform">{t.features.privacy}</div>
+              <div className="text-xs text-slate-500 hidden md:block leading-relaxed">{t.features.privacyDesc}</div>
             </div>
-            <div className="text-center p-2 md:p-3 bg-green-50 rounded-lg">
-              <div className="text-green-600 font-semibold text-xs md:text-sm">{t.features.fileTransfer}</div>
-              <div className="text-xs text-gray-600 hidden md:block">{t.features.fileTransferDesc}</div>
+            <div className="text-center p-4 rounded-xl bg-white/80 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 group">
+              <div className="text-green-600 font-bold text-sm md:text-base mb-1 group-hover:scale-105 transition-transform">{t.features.fileTransfer}</div>
+              <div className="text-xs text-slate-500 hidden md:block leading-relaxed">{t.features.fileTransferDesc}</div>
             </div>
-            <div className="text-center p-2 md:p-3 bg-purple-50 rounded-lg">
-              <div className="text-purple-600 font-semibold text-xs md:text-sm">{t.features.chat}</div>
-              <div className="text-xs text-gray-600 hidden md:block">{t.features.chatDesc}</div>
+            <div className="text-center p-4 rounded-xl bg-white/80 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 group">
+              <div className="text-purple-600 font-bold text-sm md:text-base mb-1 group-hover:scale-105 transition-transform">{t.features.chat}</div>
+              <div className="text-xs text-slate-500 hidden md:block leading-relaxed">{t.features.chatDesc}</div>
             </div>
-            <div className="text-center p-2 md:p-3 bg-orange-50 rounded-lg">
-              <div className="text-orange-600 font-semibold text-xs md:text-sm">{t.features.fastTransfer}</div>
-              <div className="text-xs text-gray-600 hidden md:block">{t.features.fastTransferDesc}</div>
+            <div className="text-center p-4 rounded-xl bg-white/80 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 group">
+              <div className="text-orange-600 font-bold text-sm md:text-base mb-1 group-hover:scale-105 transition-transform">{t.features.fastTransfer}</div>
+              <div className="text-xs text-slate-500 hidden md:block leading-relaxed">{t.features.fastTransferDesc}</div>
             </div>
           </div>
 
           {/* 安全特性说明 */}
-          <div className="bg-gray-50 p-4 rounded-lg mb-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-2">{t.securityFeatures.title}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <span className="text-green-500">✓</span>
-                <span>{t.securityFeatures.endToEnd}</span>
+          <div className="bg-white/40 backdrop-blur-sm border border-white/50 p-5 rounded-2xl mb-8 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-800 mb-3 flex items-center justify-center gap-2">
+              <span className="text-xl">🛡️</span>
+              {t.securityFeatures.title}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-slate-600">
+              <div className="flex items-center justify-center gap-2 bg-white/50 py-2 px-3 rounded-lg">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span className="font-medium">{t.securityFeatures.endToEnd}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-green-500">✓</span>
-                <span>{t.securityFeatures.p2pDirect}</span>
+              <div className="flex items-center justify-center gap-2 bg-white/50 py-2 px-3 rounded-lg">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span className="font-medium">{t.securityFeatures.p2pDirect}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-green-500">✓</span>
-                <span>{t.securityFeatures.noServer}</span>
+              <div className="flex items-center justify-center gap-2 bg-white/50 py-2 px-3 rounded-lg">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span className="font-medium">{t.securityFeatures.noServer}</span>
               </div>
             </div>
           </div>
@@ -441,16 +464,17 @@ function App() {
 
         {/* Chat Interface */}
         {rtcConnected && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span>{t.chat.title}</span>
-              </CardTitle>
-              <CardDescription>{t.chat.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* Messages */}
-              <div className="h-64 border rounded-lg p-4 mb-4 overflow-y-auto bg-white">
+          <div ref={chatCardRef}>
+            <Card className="border-primary shadow-xl ring-4 ring-primary/5 transition-all duration-500 animate-in fade-in slide-in-from-bottom-4">
+              <CardHeader className="bg-primary/5 border-b border-primary/10">
+                <CardTitle className="flex items-center gap-2 text-primary">
+                  <span>{t.chat.title}</span>
+                </CardTitle>
+                <CardDescription>{t.chat.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {/* Messages */}
+                <div className="h-80 border rounded-xl p-4 mb-4 overflow-y-auto bg-slate-50/50 shadow-inner scroll-smooth">
                 {messages.length === 0 ? (
                   <p className="text-gray-500 text-center">{t.chat.noMessages}</p>
                 ) : (
@@ -461,8 +485,8 @@ function App() {
                     >
                       <div
                         className={`inline-block max-w-xs lg:max-w-md px-3 py-2 rounded-lg ${msg.sender === 'me'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-200 text-gray-800'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-white border border-slate-200 text-slate-800'
                           }`}
                       >
                         <p className="text-sm">{msg.text}</p>
@@ -493,9 +517,9 @@ function App() {
                             {transfer.fileName}
                           </p>
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                            <div className="flex-1 bg-slate-100 rounded-full h-2">
                               <div
-                                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                                className="bg-primary h-2 rounded-full transition-all duration-300"
                                 style={{ width: `${transfer.progress}%` }}
                               />
                             </div>
@@ -525,13 +549,14 @@ function App() {
               {/* Input Area */}
               <div className="flex gap-2">
                 <Input
+                  ref={chatInputRef}
                   placeholder={t.chat.placeholder}
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  className="flex-1"
+                  className="flex-1 border-primary/20 focus-visible:ring-primary"
                 />
-                <Button onClick={handleSendMessage} disabled={!messageInput.trim()}>
+                <Button onClick={handleSendMessage} disabled={!messageInput.trim()} className="shadow-lg shadow-primary/20">
                   <Send className="w-4 h-4" />
                 </Button>
                 <Button
@@ -549,6 +574,7 @@ function App() {
               </div>
             </CardContent>
           </Card>
+          </div>
         )}
 
         {/* Instructions */}
@@ -571,20 +597,20 @@ function App() {
 
               {/* 功能特性说明 */}
               <div>
-                <h3 className="font-semibold text-gray-800 mb-3">{t.instructions.coreFeatures}</h3>
+                <h3 className="font-semibold text-slate-800 mb-3">{t.instructions.coreFeatures}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-blue-500">💬</span>
+                      <span className="text-primary">💬</span>
                       <span className="text-sm font-medium">{t.instructions.features.realtimeChat}</span>
                     </div>
-                    <p className="text-xs text-gray-600 ml-6">{t.instructions.features.realtimeChatDesc}</p>
+                    <p className="text-xs text-slate-600 ml-6">{t.instructions.features.realtimeChatDesc}</p>
 
                     <div className="flex items-center gap-2">
                       <span className="text-green-500">📁</span>
                       <span className="text-sm font-medium">{t.instructions.features.fileTransfer}</span>
                     </div>
-                    <p className="text-xs text-gray-600 ml-6">{t.instructions.features.fileTransferDesc}</p>
+                    <p className="text-xs text-slate-600 ml-6">{t.instructions.features.fileTransferDesc}</p>
                   </div>
 
                   <div className="space-y-2">
@@ -592,21 +618,21 @@ function App() {
                       <span className="text-purple-500">🔒</span>
                       <span className="text-sm font-medium">{t.instructions.features.privacy}</span>
                     </div>
-                    <p className="text-xs text-gray-600 ml-6">{t.instructions.features.privacyDesc}</p>
+                    <p className="text-xs text-slate-600 ml-6">{t.instructions.features.privacyDesc}</p>
 
                     <div className="flex items-center gap-2">
                       <span className="text-orange-500">⚡</span>
                       <span className="text-sm font-medium">{t.instructions.features.fastTransfer}</span>
                     </div>
-                    <p className="text-xs text-gray-600 ml-6">{t.instructions.features.fastTransferDesc}</p>
+                    <p className="text-xs text-slate-600 ml-6">{t.instructions.features.fastTransferDesc}</p>
                   </div>
                 </div>
               </div>
 
               {/* 安全说明 */}
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-blue-800 mb-2">{t.instructions.security}</h3>
-                <div className="text-sm text-blue-700 space-y-1">
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-lg">
+                <h3 className="font-semibold text-primary mb-2">{t.instructions.security}</h3>
+                <div className="text-sm text-slate-700 space-y-1">
                   {t.instructions.securityPoints.map((point, index) => (
                     <p key={index}>• {point}</p>
                   ))}

@@ -40,9 +40,9 @@ export const Dialog: React.FC<DialogProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-                <Card>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+            <div className="w-full max-w-md mx-4">
+                <Card className="border-0 shadow-2xl">
                     <CardHeader>
                         <CardTitle>{title}</CardTitle>
                         <CardDescription>{description}</CardDescription>
