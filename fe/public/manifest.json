@@ -1,7 +1,7 @@
 {
-  "short_name": "EasyTrans",
-  "name": "EasyTrans - 隐私安全的P2P文件传输和聊天工具",
-  "description": "基于WebRTC的隐私安全文件传输工具，支持P2P直连、端到端加密、实时聊天、消息发送和文件共享",
+  "short_name": "WebDrop",
+  "name": "WebDrop - Secure P2P File Transfer",
+  "description": "Secure P2P file transfer & real-time chat with end-to-end encryption. Drop files instantly, no size limits, no server storage.",
   "icons": [
     {
       "src": "favicon.ico",
@@ -11,21 +11,33 @@
     {
       "src": "logo192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "logo512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#3B82F6",
-  "background_color": "#ffffff",
-  "categories": ["communication", "productivity", "utilities"],
-  "lang": "zh-CN",
-  "orientation": "portrait-primary",
+  "theme_color": "#1D4ED8",
+  "background_color": "#EEF2FF",
+  "categories": ["communication", "productivity", "utilities", "business"],
+  "lang": "en",
+  "dir": "ltr",
+  "orientation": "any",
   "scope": "/",
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Start Transfer",
+      "short_name": "Transfer",
+      "description": "Start a new file transfer",
+      "url": "/",
+      "icons": [{ "src": "logo192.png", "sizes": "192x192" }]
+    }
+  ]
 }

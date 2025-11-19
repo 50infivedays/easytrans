@@ -2,12 +2,28 @@
 User-agent: *
 Allow: /
 
+# Disallow admin or sensitive paths (if any)
+Disallow: /api/
+Disallow: /*.json$
+
 # Sitemap
-Sitemap: https://eztrans.online/sitemap.xml
+Sitemap: https://webdrop.online/sitemap.xml
 
-# Allow all bots to crawl freely
-# No crawl-delay restrictions
-# No disallow restrictions
+# Crawl-delay for respectful crawling
+Crawl-delay: 1
 
-# Important pages are already allowed by "Allow: /"
-# All pages are accessible to all search engines
+# Allow specific search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /

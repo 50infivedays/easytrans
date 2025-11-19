@@ -9,7 +9,7 @@
 1. **代理配置** (`package.json`)
    ```json
    {
-     "proxy": "https://api.eztrans.online"
+     "proxy": "https://api.webdrop.online"
    }
    ```
 

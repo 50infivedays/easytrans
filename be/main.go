@@ -430,6 +430,8 @@ func main() {
 	// 设置CORS
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{
+			"https://webdrop.online",
+			"https://www.webdrop.online",
 			"https://eztrans.online",
 			"https://www.eztrans.online",
 		},
@@ -466,9 +468,12 @@ func main() {
 	handler := c.Handler(mux)
 
 	// 从环境变量读取端口号，默认为8080
-	port := os.Getenv("EZTRANS_PORT")
+	port := os.Getenv("WEBDROP_PORT")
 	if port == "" {
-		port = "8080"
+		port = os.Getenv("EZTRANS_PORT") // 向后兼容
+		if port == "" {
+			port = "8080"
+		}
 	}
 
 	// 确保端口号格式正确

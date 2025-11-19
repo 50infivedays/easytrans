@@ -93,8 +93,8 @@ export interface Translations {
 
 export const translations: Record<string, Translations> = {
     zh: {
-        title: "EasyTrans",
-        subtitle: "隐私安全的传文件, 传文本",
+        title: "WebDrop",
+        subtitle: "安全的P2P文件传输与实时聊天",
         features: {
             privacy: "🔒 隐私安全",
             privacyDesc: "端到端加密",
@@ -153,7 +153,7 @@ export const translations: Record<string, Translations> = {
         },
         instructions: {
             title: "📖 使用说明",
-            description: "快速开始使用EasyTrans进行隐私安全的文件传输和聊天",
+            description: "快速开始使用WebDrop进行隐私安全的文件传输和聊天",
             quickStart: "🚀 快速开始",
             steps: [
                 "确保WebSocket连接正常（显示'已连接'）",
@@ -195,8 +195,8 @@ export const translations: Record<string, Translations> = {
         language: "语言",
     },
     en: {
-        title: "EasyTrans",
-        subtitle: "Privacy-safe file transfer, text transfer",
+        title: "WebDrop",
+        subtitle: "Secure P2P file transfer & real-time chat",
         features: {
             privacy: "🔒 Privacy & Security",
             privacyDesc: "End-to-end encryption",

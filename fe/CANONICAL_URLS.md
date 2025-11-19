@@ -9,7 +9,7 @@
 ## 为什么需要规范链接？
 
 ### 1. 避免重复内容问题
-当网站可以通过多个URL访问时（如 `www.eztrans.online` 和 `eztrans.online`），搜索引擎可能会将其视为重复内容。
+当网站可以通过多个URL访问时（如 `www.webdrop.online` 和 `webdrop.online`），搜索引擎可能会将其视为重复内容。
 
 ### 2. SEO优化
 - 集中页面权重到一个URL
@@ -24,28 +24,28 @@
 
 ### 1. 主页面
 ```html
-<link rel="canonical" href="https://eztrans.online" />
+<link rel="canonical" href="https://webdrop.online" />
 ```
 
 ### 2. 法律声明页面
 ```html
 <!-- 隐私政策 -->
-<link rel="canonical" href="https://eztrans.online/privacy-policy.html" />
+<link rel="canonical" href="https://webdrop.online/privacy-policy.html" />
 
 <!-- 服务条款 -->
-<link rel="canonical" href="https://eztrans.online/terms-of-service.html" />
+<link rel="canonical" href="https://webdrop.online/terms-of-service.html" />
 
 <!-- 版权声明 -->
-<link rel="canonical" href="https://eztrans.online/copyright.html" />
+<link rel="canonical" href="https://webdrop.online/copyright.html" />
 
 <!-- 404页面 -->
-<link rel="canonical" href="https://eztrans.online/404.html" />
+<link rel="canonical" href="https://webdrop.online/404.html" />
 ```
 
 ## 规范链接的最佳实践
 
 ### 1. 使用绝对URL
-- ✅ 正确：`https://eztrans.online/privacy-policy.html`
+- ✅ 正确：`https://webdrop.online/privacy-policy.html`
 - ❌ 错误：`/privacy-policy.html`
 
 ### 2. 使用HTTPS协议
@@ -53,7 +53,7 @@
 - 符合现代Web标准
 
 ### 3. 不使用www前缀
-- 统一使用 `eztrans.online` 而不是 `www.eztrans.online`
+- 统一使用 `webdrop.online` 而不是 `www.webdrop.online`
 - 简化URL结构
 
 ### 4. 每个页面只有一个规范链接
@@ -68,19 +68,19 @@
 ```nginx
 server {
     listen 80;
-    server_name www.eztrans.online;
-    return 301 https://eztrans.online$request_uri;
+    server_name www.webdrop.online;
+    return 301 https://webdrop.online$request_uri;
 }
 
 server {
     listen 80;
-    server_name eztrans.online;
-    return 301 https://eztrans.online$request_uri;
+    server_name webdrop.online;
+    return 301 https://webdrop.online$request_uri;
 }
 
 server {
     listen 443 ssl;
-    server_name eztrans.online;
+    server_name webdrop.online;
     # SSL配置和其他设置
 }
 ```
@@ -88,8 +88,8 @@ server {
 ### Apache配置示例
 ```apache
 RewriteEngine On
-RewriteCond %{HTTP_HOST} ^www\.eztrans\.online [NC]
-RewriteRule ^(.*)$ https://eztrans.online/$1 [L,R=301]
+RewriteCond %{HTTP_HOST} ^www\.webdrop\.online [NC]
+RewriteRule ^(.*)$ https://webdrop.online/$1 [L,R=301]
 ```
 
 ## 验证方法
@@ -118,10 +118,10 @@ RewriteRule ^(.*)$ https://eztrans.online/$1 [L,R=301]
 规范链接通过HTML的`<link>`标签实现：
 
 ```html
-<link rel="canonical" href="https://eztrans.online" />
+<link rel="canonical" href="https://webdrop.online" />
 ```
 
 - `rel="canonical"`: 指定这是一个规范链接
 - `href`: 指向页面的规范URL
 
-这样设置后，即使用户通过 `www.eztrans.online` 访问网站，搜索引擎也会知道 `https://eztrans.online` 是主要版本。 
+这样设置后，即使用户通过 `www.webdrop.online` 访问网站，搜索引擎也会知道 `https://webdrop.online` 是主要版本。 

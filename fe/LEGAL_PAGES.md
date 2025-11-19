@@ -81,7 +81,7 @@
 ## 联系方式
 
 如有法律相关问题，请联系：
-- 隐私问题: privacy@eztrans.online
-- 法律问题: legal@eztrans.online
-- 版权问题: copyright@eztrans.online
-- 许可申请: license@eztrans.online 
+- 隐私问题: privacy@webdrop.online
+- 法律问题: legal@webdrop.online
+- 版权问题: copyright@webdrop.online
+- 许可申请: license@webdrop.online 

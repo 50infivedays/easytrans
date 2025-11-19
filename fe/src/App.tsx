@@ -33,7 +33,7 @@ function App() {
 
   // 初始化语言设置 - 默认使用英文，只有在检测到中文时才使用中文
   useEffect(() => {
-    const savedLanguage = localStorage.getItem('easytrans-language');
+    const savedLanguage = localStorage.getItem('webdrop-language');
     if (savedLanguage) {
       setLanguage(savedLanguage);
     } else {
@@ -45,7 +45,7 @@ function App() {
   // 保存语言设置到localStorage
   const handleLanguageChange = (newLanguage: string) => {
     setLanguage(newLanguage);
-    localStorage.setItem('easytrans-language', newLanguage);
+    localStorage.setItem('webdrop-language', newLanguage);
   };
 
   const { isConnected: wsConnected, uid, sendMessage: sendWsMessage, lastMessage, reconnect } = useWebSocket(WEBSOCKET_URL);
@@ -687,7 +687,7 @@ function App() {
         <div className="max-w-4xl mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-sm text-gray-600">
-              <p>© 2025 EasyTrans. {t.footer.allRightsReserved}</p>
+              <p>© 2025 WebDrop. {t.footer.allRightsReserved}</p>
             </div>
             <div className="flex flex-wrap gap-4 text-sm">
               <a

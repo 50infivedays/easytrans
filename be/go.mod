@@ -1,4 +1,4 @@
-module easytrans-backend
+module webdrop-backend
 
 go 1.23.9
 

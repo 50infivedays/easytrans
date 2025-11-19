@@ -1,6 +1,6 @@
-# EasyTrans
+# WebDrop
 
-基于WebRTC的点对点文件和文本传输应用。
+基于WebRTC的安全P2P文件传输与实时聊天工具。
 
 ## 功能特性
 
@@ -14,7 +14,7 @@
 ## 项目结构
 
 ```
-easytrans/
+webdrop/
 ├── be/          # 后端 (Go)
 ├── fe/          # 前端 (React + TypeScript)
 └── README.md

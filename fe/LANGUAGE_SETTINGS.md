@@ -4,7 +4,7 @@
 
 ## 默认语言设置
 
-EasyTrans 网站现在采用**英文作为默认语言**，只有在检测到浏览器语言为中文时才使用中文。
+WebDrop 网站现在采用**英文作为默认语言**，只有在检测到浏览器语言为中文时才使用中文。
 
 ## 语言检测逻辑
 
@@ -77,7 +77,7 @@ export const getBrowserLanguage = (): string => {
 ```typescript
 // 初始化语言设置 - 默认使用英文，只有在检测到中文时才使用中文
 useEffect(() => {
-    const savedLanguage = localStorage.getItem('easytrans-language');
+    const savedLanguage = localStorage.getItem('webdrop-language');
     if (savedLanguage) {
         setLanguage(savedLanguage);
     } else {

@@ -25,10 +25,10 @@ export const ENV = {
 
     // API配置
     api: {
-        baseUrl: process.env.NODE_ENV === 'development' ? '' : 'https://api.eztrans.online',
-        wsUrl: 'wss://api.eztrans.online/ws',
-        healthCheck: process.env.NODE_ENV === 'development' ? '/health' : 'https://api.eztrans.online/health',
-        debugUsers: process.env.NODE_ENV === 'development' ? '/debug/users' : 'https://api.eztrans.online/debug/users'
+        baseUrl: process.env.NODE_ENV === 'development' ? '' : 'https://api.webdrop.online',
+        wsUrl: 'wss://api.webdrop.online/ws',
+        healthCheck: process.env.NODE_ENV === 'development' ? '/health' : 'https://api.webdrop.online/health',
+        debugUsers: process.env.NODE_ENV === 'development' ? '/debug/users' : 'https://api.webdrop.online/debug/users'
     }
 };
 
