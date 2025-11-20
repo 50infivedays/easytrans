@@ -243,7 +243,9 @@ export const useWebRTC = (
         const rtcConfig: RTCConfiguration = {
             iceServers: [
                 // === 公共STUN服务器（优先级高，免费可靠）===
-                
+                // Cloudflare STUN 服务器
+                { urls: 'stun:stun.cloudflare.com:3478' },
+
                 // Google STUN 服务器（最可靠）
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
@@ -251,11 +253,7 @@ export const useWebRTC = (
                 { urls: 'stun:stun3.l.google.com:19302' },
                 { urls: 'stun:stun4.l.google.com:19302' },
 
-                // Cloudflare STUN 服务器
-                { urls: 'stun:stun.cloudflare.com:3478' },
 
-                // 小米WiFi STUN 服务器
-                { urls: 'stun:stun.miwifi.com:3478' },
 
                 // VoIP 服务 STUN 服务器
                 { urls: 'stun:stun.voipbuster.com:3478' },
