@@ -3,7 +3,15 @@
 
 <head>
   <meta charset="utf-8" />
-  <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+  
+  <!-- Favicon Configuration -->
+  <link rel="icon" type="image/x-icon" href="%PUBLIC_URL%/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="16x16" href="%PUBLIC_URL%/favicon-16x16.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/favicon-32x32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/android-chrome-192x192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="%PUBLIC_URL%/android-chrome-512x512.png" />
+  
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#1D4ED8" />
 
@@ -12,13 +20,13 @@
   <meta name="description"
     content="WebDrop: Secure P2P file transfer & real-time chat. Drop files instantly with end-to-end encryption, no size limits, no server storage. Fast, private, and free." />
   <meta name="keywords"
-    content="webdrop,file transfer,P2P transfer,secure file sharing,WebRTC,end-to-end encryption,instant file drop,real-time chat,private file transfer,online file sharing,drag and drop files,peer to peer,encrypted transfer,no size limit" />
+    content="airdrop,snapdrop,webdrop,file transfer,share files,p2p file sharing,send anywhere,large file transfer,webrtc,secure transfer" />
   <meta name="author" content="WebDrop" />
 
   <!-- Chinese SEO Meta Tags -->
   <meta name="description" lang="zh-CN" content="WebDrop: 安全的P2P文件传输与实时聊天工具。端到端加密，无大小限制，不存储文件。快速、私密、免费。" />
   <meta name="keywords" lang="zh-CN"
-    content="webdrop,文件传输,P2P传输,安全文件共享,WebRTC,端到端加密,即时文件投递,实时聊天,隐私文件传输,在线文件共享,拖放文件,点对点,加密传输,无大小限制" />
+    content="airdrop,snapdrop,隔空投送,webdrop,文件传输,传文件,快传,大文件传输,p2p传输,手机传电脑" />
 
   <!-- Open Graph Meta Tags -->
   <meta property="og:title" content="WebDrop - Secure P2P File Transfer & Real-time Chat" />
@@ -29,7 +37,7 @@
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://webdrop.online" />
   <meta property="og:site_name" content="WebDrop" />
-  <meta property="og:image" content="%PUBLIC_URL%/logo512.png" />
+  <meta property="og:image" content="%PUBLIC_URL%/android-chrome-512x512.png" />
   <meta property="og:image:width" content="512" />
   <meta property="og:image:height" content="512" />
 
@@ -38,7 +46,7 @@
   <meta name="twitter:title" content="WebDrop - Secure P2P File Transfer & Real-time Chat" />
   <meta name="twitter:description"
     content="Drop files instantly with end-to-end encryption. No size limits, no server storage. Fast, private, and free." />
-  <meta name="twitter:image" content="%PUBLIC_URL%/logo512.png" />
+  <meta name="twitter:image" content="%PUBLIC_URL%/android-chrome-512x512.png" />
   <meta name="twitter:site" content="@webdrop" />
   <meta name="twitter:creator" content="@webdrop" />
 
@@ -59,9 +67,12 @@
   <link rel="alternate" hreflang="zh-CN" href="https://webdrop.online" />
   <link rel="alternate" hreflang="zh-TW" href="https://webdrop.online" />
   <link rel="alternate" hreflang="zh-HK" href="https://webdrop.online" />
+  <link rel="alternate" hreflang="es" href="https://webdrop.online" />
+  <link rel="alternate" hreflang="ru" href="https://webdrop.online" />
   <link rel="alternate" hreflang="x-default" href="https://webdrop.online" />
 
   <!-- Security Meta Tags -->
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
   <meta http-equiv="X-Frame-Options" content="DENY" />
   <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
@@ -75,7 +86,6 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="mobile-web-app-capable" content="yes" />
 
-  <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
   <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
 
   <!-- Preconnect to improve performance -->
@@ -91,6 +101,25 @@
     gtag('config', 'G-SF9EWZDX5Q');
   </script>
 
+  <!-- Organization Schema with Logo (for Google Search) -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "WebDrop",
+      "url": "https://webdrop.online",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://webdrop.online/android-chrome-512x512.png",
+        "width": 512,
+        "height": 512
+      },
+      "description": "Secure P2P file transfer & real-time chat with end-to-end encryption",
+      "foundingDate": "2025",
+      "sameAs": []
+    }
+  </script>
+
   <!-- Structured Data for SEO (English) -->
   <script type="application/ld+json">
     {
@@ -100,8 +129,14 @@
       "alternateName": ["Web Drop", "webdrop.online"],
       "description": "Secure P2P file transfer & real-time chat. Drop files instantly with end-to-end encryption, no size limits, no server storage.",
       "url": "https://webdrop.online",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://webdrop.online/android-chrome-512x512.png",
+        "width": 512,
+        "height": 512
+      },
       "datePublished": "2025-01-01",
-      "dateModified": "2025-11-19",
+      "dateModified": "2025-11-20",
       "applicationCategory": "CommunicationApplication",
       "operatingSystem": "Web Browser, Cross-platform",
       "browserRequirements": "Requires JavaScript. Requires HTML5.",
@@ -124,7 +159,7 @@
         "Cross-platform Support",
         "Drag and Drop Interface"
       ],
-      "screenshot": "%PUBLIC_URL%/logo512.png",
+      "screenshot": "%PUBLIC_URL%/android-chrome-512x512.png",
       "aggregateRating": {
         "@type": "AggregateRating",
         "ratingValue": "4.8",
@@ -154,8 +189,14 @@
       "alternateName": ["网络投递", "文件投递"],
       "description": "安全的P2P文件传输与实时聊天工具。端到端加密，无大小限制，不存储文件。快速、私密、免费。",
       "url": "https://webdrop.online",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://webdrop.online/android-chrome-512x512.png",
+        "width": 512,
+        "height": 512
+      },
       "datePublished": "2025-01-01",
-      "dateModified": "2025-11-19",
+      "dateModified": "2025-11-20",
       "applicationCategory": "CommunicationApplication",
       "operatingSystem": "Web浏览器, 跨平台",
       "offers": {
