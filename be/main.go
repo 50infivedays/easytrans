@@ -434,6 +434,7 @@ func main() {
 			"https://www.webdrop.online",
 			"https://eztrans.online",
 			"https://www.eztrans.online",
+			"https://test.eztrans.online",
 		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
