@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Script from 'next/script';
+import Navbar from '@/components/Navbar';
 
 export const metadata: Metadata = {
   title: "WebDrop - Secure P2P File Transfer & Real-time Chat | Drop Files Instantly",
@@ -219,6 +220,7 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://api.webdrop.online" />
       </head>
       <body className="antialiased">
+        <Navbar />
         {children}
       </body>
     </html>

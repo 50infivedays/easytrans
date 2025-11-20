@@ -249,7 +249,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-8">
+    <div className="min-h-screen p-4 md:p-8 pt-8">
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header with Language Switcher */}
         <div className="text-center relative py-4">
