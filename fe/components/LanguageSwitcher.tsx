@@ -14,20 +14,20 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
   onLanguageChange,
 }) => {
   const languageOptions = [
-    { value: 'zh', label: '中' },
+    { value: 'zh', label: '中文' },
     { value: 'en', label: 'Eng' },
     { value: 'es', label: 'Esp' },
     { value: 'ru', label: 'Рус' },
   ];
 
   return (
-    <div className="flex items-center gap-2">
-      <Globe className="w-4 h-4 text-gray-600" />
+    <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-primary/10 transition-colors duration-200">
+      <Globe className="w-4 h-4 text-primary" />
       <Dropdown
         options={languageOptions}
         value={currentLanguage}
         onChange={onLanguageChange}
-        className="w-16"
+        className="w-20 text-sm font-medium"
       />
     </div>
   );

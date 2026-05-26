@@ -11,17 +11,17 @@ import { Toast } from '@/components/ui/toast';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { Send, Copy, FileUp, Users, Wifi, WifiOff, Download, CheckCircle, AlertCircle, QrCode } from 'lucide-react';
-import LanguageSwitcher from '@/components/LanguageSwitcher';
-import { translations, getBrowserLanguage, formatMessage, Translations } from '@/i18n/translations';
+import { translations, formatMessage, Translations } from '@/i18n/translations';
 import { getWebSocketURL } from '@/config/api';
 import DebugPanel from '@/components/DebugPanel';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const WEBSOCKET_URL = getWebSocketURL();
 
 export default function Home() {
+  const { language } = useLanguage();
   const [targetId, setTargetId] = useState('');
   const [messageInput, setMessageInput] = useState('');
-  const [language, setLanguage] = useState<string>('zh');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
@@ -32,23 +32,6 @@ export default function Home() {
   const isInitialMount = useRef(true);
   const hasAttemptedConnection = useRef(false);
   const previousConnectionState = useRef<boolean | null>(null);
-
-  // 初始化语言设置 - 默认使用英文，只有在检测到中文时才使用中文
-  useEffect(() => {
-    const savedLanguage = localStorage.getItem('webdrop-language');
-    if (savedLanguage) {
-      setLanguage(savedLanguage);
-    } else {
-      const browserLanguage = getBrowserLanguage();
-      setLanguage(browserLanguage);
-    }
-  }, []);
-
-  // 保存语言设置到localStorage
-  const handleLanguageChange = (newLanguage: string) => {
-    setLanguage(newLanguage);
-    localStorage.setItem('webdrop-language', newLanguage);
-  };
 
   const { isConnected: wsConnected, uid, sendMessage: sendWsMessage, lastMessage, reconnect } = useWebSocket(WEBSOCKET_URL);
 
@@ -106,6 +89,34 @@ export default function Home() {
     const file = event.target.files?.[0];
     if (file) {
       sendFile(file);
+    }
+  };
+
+  const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    // 查找图片项
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      // 检查是否是图片类型
+      if (item.type.indexOf('image') !== -1) {
+        event.preventDefault(); // 防止粘贴默认行为
+        event.stopPropagation(); // 阻止事件冒泡，防止重复触发
+        
+        const file = item.getAsFile();
+        if (file) {
+          // 发送图片文件
+          sendFile(file);
+          
+          // 显示成功提示
+          setToastMessage(language === 'zh' ? '正在发送图片...' : 'Sending image...');
+          setToastType('info');
+          setShowToast(true);
+        }
+        break;
+      }
     }
   };
 
@@ -251,29 +262,10 @@ export default function Home() {
   return (
     <div className="min-h-screen p-4 md:p-8 pt-8">
       <div className="max-w-4xl mx-auto space-y-8">
-        {/* Header with Language Switcher */}
-        <div className="text-center relative py-4">
-          <div className="inline-flex items-center justify-center p-3 mb-4 rounded-2xl bg-white/60 shadow-sm ring-1 ring-white/50">
-            <Wifi className="w-8 h-8 text-primary" />
-          </div>
+        {/* Header */}
+        <div className="text-center py-4">
           <h1 className="text-3xl md:text-4xl font-extrabold text-slate-800 mb-3 tracking-tight drop-shadow-sm">{t.title}</h1>
           <p className="text-base md:text-lg text-slate-600 mb-8 max-w-2xl mx-auto leading-relaxed">{t.subtitle}</p>
-
-          {/* Language Switcher - positioned below title on mobile */}
-          <div className="flex justify-center mb-4 md:hidden">
-            <LanguageSwitcher
-              currentLanguage={language}
-              onLanguageChange={handleLanguageChange}
-            />
-          </div>
-
-          {/* Language Switcher - positioned in top right on desktop */}
-          <div className="hidden md:block absolute top-0 right-0">
-            <LanguageSwitcher
-              currentLanguage={language}
-              onLanguageChange={handleLanguageChange}
-            />
-          </div>
 
           {/* 功能特性展示 */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
@@ -466,7 +458,11 @@ export default function Home() {
 
         {/* Chat Interface */}
         {rtcConnected && (
-          <div ref={chatCardRef}>
+          <div 
+            ref={chatCardRef}
+            onPaste={(e) => handlePaste(e as any)}
+            tabIndex={-1}
+          >
             <Card className="border-primary shadow-xl ring-4 ring-primary/5 transition-all duration-500 animate-in fade-in slide-in-from-bottom-4">
               <CardHeader className="bg-primary/5 border-b border-primary/10">
                 <CardTitle className="flex items-center gap-2 text-primary">
@@ -556,6 +552,7 @@ export default function Home() {
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  onPaste={handlePaste}
                   className="flex-1 border-primary/20 focus-visible:ring-primary"
                 />
                 <Button onClick={handleSendMessage} disabled={!messageInput.trim()} className="shadow-lg shadow-primary/20">

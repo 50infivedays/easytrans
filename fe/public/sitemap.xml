@@ -28,4 +28,49 @@
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
+  <url>
+    <loc>https://webdrop.online/blog</loc>
+    <lastmod>2025-11-21</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://webdrop.online/blog" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://webdrop.online/blog" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://webdrop.online/blog" />
+  </url>
+  <url>
+    <loc>https://webdrop.online/blog/best-cross-platform-file-transfer</loc>
+    <lastmod>2025-11-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://webdrop.online/blog/best-cross-platform-file-transfer" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://webdrop.online/blog/best-cross-platform-file-transfer" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://webdrop.online/blog/best-cross-platform-file-transfer" />
+  </url>
+  <url>
+    <loc>https://webdrop.online/blog/welcome-to-webdrop</loc>
+    <lastmod>2025-11-20</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://webdrop.online/blog/welcome-to-webdrop" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://webdrop.online/blog/welcome-to-webdrop" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://webdrop.online/blog/welcome-to-webdrop" />
+  </url>
+  <url>
+    <loc>https://webdrop.online/blog/how-p2p-file-transfer-works</loc>
+    <lastmod>2025-11-15</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://webdrop.online/blog/how-p2p-file-transfer-works" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://webdrop.online/blog/how-p2p-file-transfer-works" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://webdrop.online/blog/how-p2p-file-transfer-works" />
+  </url>
+  <url>
+    <loc>https://webdrop.online/blog/security-best-practices</loc>
+    <lastmod>2025-11-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://webdrop.online/blog/security-best-practices" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://webdrop.online/blog/security-best-practices" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://webdrop.online/blog/security-best-practices" />
+  </url>
 </urlset>
