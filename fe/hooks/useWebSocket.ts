@@ -1,6 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+    SignalingTabCoordinator,
+    createSessionId,
+} from '@/lib/signaling-tab-coordinator';
 
 export interface Message {
     type: string;
@@ -23,6 +27,7 @@ export interface UseWebSocketReturn {
     socket: WebSocket | null;
     isConnected: boolean;
     uid: string | null;
+    isSignalingLeader: boolean;
     sendMessage: (message: Message) => void;
     drainSignalingMessages: () => Message[];
     signalingRevision: number;
@@ -33,14 +38,20 @@ export interface UseWebSocketReturn {
 export const useWebSocket = (url: string): UseWebSocketReturn => {
     const [socket, setSocket] = useState<WebSocket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
-    const [uid, setUid] = useState<string | null>(null);
+    const [uid, setUid] = useState<string | null>(() =>
+        typeof window !== 'undefined' ? localStorage.getItem('uid') : null
+    );
     const [signalingRevision, setSignalingRevision] = useState(0);
+    const [isSignalingLeader, setIsSignalingLeader] = useState(false);
 
-    const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const coordinatorRef = useRef<SignalingTabCoordinator | null>(null);
+    const sessionIdRef = useRef<string>('');
+    const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const reconnectCountRef = useRef(0);
     const wsRef = useRef<WebSocket | null>(null);
     const isConnectingRef = useRef(false);
     const isManualDisconnectRef = useRef(false);
+    const sessionReplacedRef = useRef(false);
     const signalingQueueRef = useRef<Message[]>([]);
 
     const maxReconnectAttempts = 5;
@@ -58,10 +69,63 @@ export const useWebSocket = (url: string): UseWebSocketReturn => {
         return signalingQueueRef.current.splice(0);
     }, []);
 
-    const sendMessage = useCallback((message: Message) => {
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify(message));
+    const broadcastWsState = useCallback(
+        (nextUid: string | null, connected: boolean) => {
+            coordinatorRef.current?.broadcastFromLeader({
+                type: 'ws-state',
+                uid: nextUid,
+                connected,
+                sessionId: sessionIdRef.current,
+            });
+        },
+        []
+    );
+
+    const uidRef = useRef<string | null>(uid);
+    uidRef.current = uid;
+
+    const handleServerPayload = useCallback(
+        (raw: string) => {
+            try {
+                const message: Message = JSON.parse(raw);
+
+                if (message.type === 'session_replaced') {
+                    sessionReplacedRef.current = true;
+                    isManualDisconnectRef.current = true;
+                    wsRef.current?.close(4000, 'session_replaced');
+                    setIsConnected(false);
+                    setSocket(null);
+                    broadcastWsState(uidRef.current, false);
+                    return;
+                }
+
+                if (message.type === 'login_success') {
+                    const { uid: userUid } = message.data as { uid: string; isNewUser?: boolean };
+                    setUid(userUid);
+                    localStorage.setItem('uid', userUid);
+                    setIsConnected(true);
+                    broadcastWsState(userUid, true);
+                    return;
+                }
+
+                if (SIGNALING_TYPES.has(message.type)) {
+                    enqueueSignalingMessage(message);
+                }
+            } catch {
+                // ignore malformed payloads
+            }
+        },
+        [broadcastWsState, enqueueSignalingMessage]
+    );
+
+    const closeSocket = useCallback(() => {
+        if (wsRef.current) {
+            wsRef.current.close(1000, 'Client closing');
+            wsRef.current = null;
         }
+        setSocket(null);
+        setIsConnected(false);
+        isConnectingRef.current = false;
     }, []);
 
     const clearReconnectTimeout = useCallback(() => {
@@ -72,27 +136,26 @@ export const useWebSocket = (url: string): UseWebSocketReturn => {
     }, []);
 
     const connect = useCallback(() => {
+        const coordinator = coordinatorRef.current;
+        if (!coordinator?.isLeader()) return;
+        if (sessionReplacedRef.current) return;
         if (isConnectingRef.current || (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING)) {
-            console.log('Connection already in progress, skipping...');
             return;
         }
 
         if (wsRef.current) {
-            wsRef.current.close();
-            wsRef.current = null;
-            setSocket(null);
+            closeSocket();
         }
 
         clearReconnectTimeout();
         isConnectingRef.current = true;
+        sessionIdRef.current = createSessionId();
 
         try {
-            console.log('Attempting to connect to WebSocket...');
             const ws = new WebSocket(url);
             wsRef.current = ws;
 
             ws.onopen = () => {
-                console.log('WebSocket connected, waiting for ready message...');
                 setSocket(ws);
                 isConnectingRef.current = false;
                 reconnectCountRef.current = 0;
@@ -100,45 +163,29 @@ export const useWebSocket = (url: string): UseWebSocketReturn => {
             };
 
             ws.onmessage = (event) => {
+                const raw = typeof event.data === 'string' ? event.data : '';
+                if (!raw) return;
+
                 try {
-                    const message: Message = JSON.parse(event.data);
-
+                    const message: Message = JSON.parse(raw);
                     if (message.type === 'ready') {
-                        console.log('Server ready, sending login message...');
                         const savedUid = localStorage.getItem('uid') || '';
-                        const loginMessage: Message = {
-                            type: 'login',
-                            data: { uid: savedUid },
-                        };
-                        ws.send(JSON.stringify(loginMessage));
+                        ws.send(
+                            JSON.stringify({
+                                type: 'login',
+                                data: { uid: savedUid, sessionId: sessionIdRef.current },
+                            })
+                        );
                         return;
                     }
-
-                    if (message.type === 'login_success') {
-                        console.log('Login successful');
-                        const { uid: userUid, isNewUser } = message.data as { uid: string; isNewUser: boolean };
-                        setUid(userUid);
-                        localStorage.setItem('uid', userUid);
-                        setIsConnected(true);
-
-                        if (isNewUser) {
-                            console.log('New user UID assigned:', userUid);
-                        } else {
-                            console.log('Existing user logged in:', userUid);
-                        }
-                        return;
-                    }
-
-                    if (SIGNALING_TYPES.has(message.type)) {
-                        enqueueSignalingMessage(message);
-                    }
-                } catch (err) {
-                    console.error('Failed to parse message:', err);
+                } catch {
+                    // fall through
                 }
+
+                handleServerPayload(raw);
             };
 
             ws.onclose = (event) => {
-                console.log('WebSocket disconnected, code:', event.code, 'reason:', event.reason);
                 setIsConnected(false);
                 setSocket(null);
                 isConnectingRef.current = false;
@@ -147,120 +194,128 @@ export const useWebSocket = (url: string): UseWebSocketReturn => {
                     wsRef.current = null;
                 }
 
-                if (!isManualDisconnectRef.current &&
+                if (sessionReplacedRef.current || isManualDisconnectRef.current) {
+                    broadcastWsState(uidRef.current, false);
+                    return;
+                }
+
+                if (
+                    coordinator.isLeader() &&
                     event.code !== 1000 &&
-                    reconnectCountRef.current < maxReconnectAttempts) {
-
+                    reconnectCountRef.current < maxReconnectAttempts
+                ) {
                     reconnectCountRef.current++;
-                    const delay = Math.min(baseReconnectDelay * Math.pow(2, reconnectCountRef.current - 1), 30000);
-                    console.log(`Attempting to reconnect (${reconnectCountRef.current}/${maxReconnectAttempts}) in ${delay}ms...`);
-
+                    const delay = Math.min(
+                        baseReconnectDelay * Math.pow(2, reconnectCountRef.current - 1),
+                        30000
+                    );
                     reconnectTimeoutRef.current = setTimeout(() => {
-                        if (!isManualDisconnectRef.current) {
+                        if (!sessionReplacedRef.current && !isManualDisconnectRef.current) {
                             connect();
                         }
                     }, delay);
-                } else if (reconnectCountRef.current >= maxReconnectAttempts) {
-                    console.log('Max reconnection attempts reached, giving up');
-                } else if (isManualDisconnectRef.current) {
-                    console.log('Manual disconnect, not reconnecting');
+                } else {
+                    broadcastWsState(uidRef.current, false);
                 }
             };
 
             ws.onerror = () => {
                 isConnectingRef.current = false;
             };
-
-        } catch (error) {
-            console.error('Failed to create WebSocket connection:', error);
+        } catch {
             isConnectingRef.current = false;
-
-            if (!isManualDisconnectRef.current && reconnectCountRef.current < maxReconnectAttempts) {
-                reconnectCountRef.current++;
-                const delay = Math.min(baseReconnectDelay * Math.pow(2, reconnectCountRef.current - 1), 30000);
-                console.log(`Connection failed, retrying (${reconnectCountRef.current}/${maxReconnectAttempts}) in ${delay}ms...`);
-
-                reconnectTimeoutRef.current = setTimeout(() => {
-                    if (!isManualDisconnectRef.current) {
-                        connect();
-                    }
-                }, delay);
-            } else {
-                console.log('Max reconnection attempts reached, giving up');
-            }
         }
-    }, [url, clearReconnectTimeout, enqueueSignalingMessage]);
+    }, [
+        url,
+        clearReconnectTimeout,
+        closeSocket,
+        handleServerPayload,
+        broadcastWsState,
+    ]);
+
+    const sendMessage = useCallback((message: Message) => {
+        const payload = JSON.stringify(message);
+        const coordinator = coordinatorRef.current;
+
+        if (coordinator?.isLeader()) {
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(payload);
+            }
+            return;
+        }
+
+        coordinator?.sendToLeader(payload);
+    }, []);
 
     const disconnect = useCallback(() => {
-        console.log('Manual disconnect requested');
         isManualDisconnectRef.current = true;
+        sessionReplacedRef.current = false;
         clearReconnectTimeout();
-
-        if (wsRef.current) {
-            wsRef.current.close(1000, 'Manual disconnect');
-            wsRef.current = null;
-        }
-        setSocket(null);
-        setIsConnected(false);
-        isConnectingRef.current = false;
-    }, [clearReconnectTimeout]);
+        closeSocket();
+        broadcastWsState(uidRef.current, false);
+    }, [clearReconnectTimeout, closeSocket, broadcastWsState]);
 
     const reconnect = useCallback(() => {
-        console.log('Manual reconnect requested');
+        sessionReplacedRef.current = false;
         reconnectCountRef.current = 0;
         isManualDisconnectRef.current = false;
-        connect();
-    }, [connect]);
+        coordinatorRef.current?.requestLeadership();
+    }, []);
 
     useEffect(() => {
-        let mounted = true;
-        let idleId: number | undefined;
-        let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+        const coordinator = SignalingTabCoordinator.getInstance();
+        coordinatorRef.current = coordinator;
 
-        const startConnect = () => {
-            if (mounted && !wsRef.current && !isManualDisconnectRef.current) {
-                connect();
+        const unsubscribe = coordinator.subscribe((event) => {
+            switch (event.type) {
+                case 'became-leader':
+                    setIsSignalingLeader(true);
+                    sessionReplacedRef.current = false;
+                    isManualDisconnectRef.current = false;
+                    reconnectCountRef.current = 0;
+                    connect();
+                    break;
+                case 'resigned-leader':
+                    setIsSignalingLeader(false);
+                    isManualDisconnectRef.current = true;
+                    clearReconnectTimeout();
+                    closeSocket();
+                    break;
+                case 'ws-send':
+                    if (coordinator.isLeader() && wsRef.current?.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(event.payload);
+                    }
+                    break;
+                case 'ws-state':
+                    setUid(event.uid);
+                    setIsConnected(event.connected);
+                    if (event.uid) localStorage.setItem('uid', event.uid);
+                    break;
+                default:
+                    break;
             }
-        };
+        });
 
-        const scheduleConnect = () => {
-            if (typeof window.requestIdleCallback === 'function') {
-                idleId = window.requestIdleCallback(startConnect, { timeout: 3500 });
-            } else {
-                fallbackTimer = setTimeout(startConnect, 2000);
-            }
-        };
-
-        if (document.readyState === 'complete') {
-            scheduleConnect();
-        } else {
-            window.addEventListener('load', scheduleConnect, { once: true });
-        }
+        const detachVisibility = coordinator.attachVisibilityHandlers();
 
         return () => {
-            mounted = false;
-            window.removeEventListener('load', scheduleConnect);
-            if (idleId !== undefined && typeof window.cancelIdleCallback === 'function') {
-                window.cancelIdleCallback(idleId);
-            }
-            if (fallbackTimer) clearTimeout(fallbackTimer);
+            detachVisibility();
+            unsubscribe();
             isManualDisconnectRef.current = true;
             clearReconnectTimeout();
-            if (wsRef.current) {
-                wsRef.current.close(1000, 'Component unmounting');
-                wsRef.current = null;
-            }
+            closeSocket();
         };
-    }, [connect, clearReconnectTimeout]);
+    }, [connect, clearReconnectTimeout, closeSocket, handleServerPayload]);
 
     useEffect(() => {
-        if (wsRef.current) {
-            disconnect();
-            const timer = setTimeout(() => {
-                reconnect();
-            }, 100);
-            return () => clearTimeout(timer);
-        }
+        if (!coordinatorRef.current?.isLeader()) return;
+        disconnect();
+        const timer = setTimeout(() => {
+            sessionReplacedRef.current = false;
+            isManualDisconnectRef.current = false;
+            connect();
+        }, 100);
+        return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [url]);
 
@@ -268,6 +323,7 @@ export const useWebSocket = (url: string): UseWebSocketReturn => {
         socket,
         isConnected,
         uid,
+        isSignalingLeader,
         sendMessage,
         drainSignalingMessages,
         signalingRevision,

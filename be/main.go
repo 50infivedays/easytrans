@@ -95,11 +95,24 @@ func (h *Hub) run() {
 		select {
 		case client := <-h.register:
 			h.mutex.Lock()
-			// 如果该用户已有连接，关闭旧连接
-			if oldClient, exists := h.userClients[client.UID]; exists {
-				log.Printf("⚠️  User %s already has connection %s, closing old connection", client.UID, oldClient.ID)
+			// 如果该用户已有连接，通知旧会话并关闭
+			if oldClient, exists := h.userClients[client.UID]; exists && oldClient.ID != client.ID {
+				log.Printf("⚠️  User %s already has connection %s, replacing with %s", client.UID, oldClient.ID, client.ID)
+				replaced := Message{
+					Type: "session_replaced",
+					Data: map[string]interface{}{
+						"uid": client.UID,
+					},
+				}
+				if data, err := json.Marshal(replaced); err == nil {
+					select {
+					case oldClient.Send <- data:
+					default:
+					}
+				}
 				close(oldClient.Send)
 				delete(h.clients, oldClient.ID)
+				go oldClient.Conn.Close()
 			}
 
 			// 注册新连接
@@ -117,7 +130,9 @@ func (h *Hub) run() {
 			h.mutex.Lock()
 			if _, ok := h.clients[client.ID]; ok {
 				delete(h.clients, client.ID)
-				delete(h.userClients, client.UID)
+				if current, ok := h.userClients[client.UID]; ok && current.ID == client.ID {
+					delete(h.userClients, client.UID)
+				}
 				close(client.Send)
 				log.Printf("❌ Client %s (User %s) disconnected. Total users: %d", client.ID, client.UID, len(h.userClients))
 			} else {
@@ -133,7 +148,9 @@ func (h *Hub) run() {
 				default:
 					close(client.Send)
 					delete(h.clients, client.ID)
-					delete(h.userClients, client.UID)
+					if current, ok := h.userClients[client.UID]; ok && current.ID == client.ID {
+						delete(h.userClients, client.UID)
+					}
 				}
 			}
 			h.mutex.RUnlock()
