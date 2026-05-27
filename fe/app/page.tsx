@@ -15,6 +15,7 @@ import {
   QrCode,
   MessageSquare,
 } from 'lucide-react';
+import { MessageCopyIcon } from '@/components/MessageCopyIcon';
 import { translations, formatMessage, Translations } from '@/i18n/translations';
 import { getWebSocketURL } from '@/config/api';
 import SiteFooter from '@/components/SiteFooter';
@@ -56,7 +57,8 @@ export default function Home() {
     return !window.matchMedia('(max-width: 960px)').matches;
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const chatInputRef = useRef<HTMLInputElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
+  const COMPOSER_MAX_HEIGHT_PX = 120;
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const prevMessageCountRef = useRef(0);
   const isInitialMount = useRef(true);
@@ -112,10 +114,21 @@ export default function Home() {
     setShowToast(true);
   };
 
+  const adjustComposerHeight = useCallback(() => {
+    const el = chatInputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, COMPOSER_MAX_HEIGHT_PX)}px`;
+  }, []);
+
   const handleSendMessage = () => {
     if (messageInput.trim()) {
       sendRTCMessage(messageInput);
       setMessageInput('');
+      requestAnimationFrame(() => {
+        const el = chatInputRef.current;
+        if (el) el.style.height = 'auto';
+      });
     }
   };
 
@@ -146,7 +159,7 @@ export default function Home() {
     event.target.value = '';
   };
 
-  const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = event.clipboardData?.items;
     if (!items) return;
 
@@ -173,26 +186,41 @@ export default function Home() {
     }
   };
 
+  const writeClipboard = async (text: string) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+  };
+
   const copyToClipboard = async () => {
     if (!uid) return;
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(uid);
-      } else {
-        const textArea = document.createElement('textarea');
-        textArea.value = uid;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-      }
+      await writeClipboard(uid);
       setToastMessage(w.toastCopied);
       setToastType('success');
       setShowToast(true);
     } catch {
       alert(`UID: ${uid}`);
+    }
+  };
+
+  const copyMessageText = async (text: string) => {
+    try {
+      await writeClipboard(text);
+      setToastMessage(w.toastMessageCopied);
+      setToastType('success');
+      setShowToast(true);
+    } catch {
+      alert(text);
     }
   };
 
@@ -263,6 +291,10 @@ export default function Home() {
     }
     prevMessageCountRef.current = messages.length;
   }, [messages, scrollMessagesToBottom]);
+
+  useEffect(() => {
+    adjustComposerHeight();
+  }, [messageInput, adjustComposerHeight]);
 
   const formatTime = (date: Date) =>
     date.toLocaleTimeString(language === 'zh' ? 'zh-CN' : language === 'ru' ? 'ru-RU' : language === 'es' ? 'es-ES' : 'en-US', {
@@ -421,7 +453,7 @@ export default function Home() {
 
           <section
             className="panel chat-panel"
-            onPaste={(e) => handlePaste(e as React.ClipboardEvent<HTMLInputElement>)}
+            onPaste={(e) => handlePaste(e as React.ClipboardEvent<HTMLTextAreaElement>)}
           >
             <div className="panel-header chat-panel-header">
               <p className="panel-label chat-step-label">{w.step2}</p>
@@ -444,8 +476,11 @@ export default function Home() {
                 </div>
 
                 <div className="messages" ref={messagesContainerRef} role="log" aria-live="polite">
-                  {messages.map((msg) => (
-                    <div key={msg.id} className={`msg ${msg.sender === 'me' ? 'me' : 'them'}`}>
+                  {messages.map((msg) => {
+                    const isMe = msg.sender === 'me';
+                    const showCopy = !isMe && msg.type === 'text';
+
+                    const bubble = (
                       <div className="msg-bubble">
                         <p>{msg.text}</p>
                         {msg.type === 'file' && (
@@ -457,8 +492,29 @@ export default function Home() {
                         )}
                         <span className="msg-time">{formatTime(msg.timestamp)}</span>
                       </div>
-                    </div>
-                  ))}
+                    );
+
+                    return (
+                      <div key={msg.id} className={`msg ${isMe ? 'me' : 'them'}`}>
+                        {showCopy ? (
+                          <div className="msg-row">
+                            {bubble}
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-icon-only msg-copy-btn"
+                              onClick={() => void copyMessageText(msg.text)}
+                              aria-label={w.copyMessage}
+                              title={w.copyMessage}
+                            >
+                              <MessageCopyIcon size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          bubble
+                        )}
+                      </div>
+                    );
+                  })}
                   <div className="messages-end" aria-hidden />
                 </div>
 
@@ -495,14 +551,19 @@ export default function Home() {
                 ))}
 
                 <div className="composer">
-                  <input
+                  <textarea
                     ref={chatInputRef}
-                    className="input-field"
-                    type="text"
+                    className="input-field composer-input"
+                    rows={1}
                     placeholder={t.chat.placeholder}
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
                     onPaste={handlePaste}
                   />
                   <button

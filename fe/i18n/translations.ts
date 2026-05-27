@@ -121,6 +121,8 @@ export interface Translations {
         navHome: string;
         navBlog: string;
         toastCopied: string;
+        toastMessageCopied: string;
+        copyMessage: string;
         sendingImage: string;
         connectionSuccess: string;
         connectionFailed: string;
@@ -142,6 +144,15 @@ export interface Translations {
             rejected: string;
             error: string;
             targetNotFound: string;
+            networkSelfBlocked: string;
+            networkPeerBlocked: string;
+            networkBothLimited: string;
+            networkLimited: string;
+            networkReason_no_udp: string;
+            networkReason_symmetric_nat: string;
+            networkReason_turn_blocked: string;
+            networkReason_ice_failed: string;
+            networkReason_checking_timeout: string;
         };
     };
     language: string;
@@ -281,6 +292,8 @@ export const translations: Record<string, Translations> = {
             navHome: "首页",
             navBlog: "博客",
             toastCopied: "连接码已复制",
+            toastMessageCopied: "消息已复制",
+            copyMessage: "复制消息",
             sendingImage: "正在发送图片...",
             connectionSuccess: "连接成功",
             connectionFailed: "连接失败",
@@ -306,6 +319,15 @@ export const translations: Record<string, Translations> = {
                 rejected: "对方拒绝了连接请求",
                 error: "信令错误",
                 targetNotFound: "对方不在线或 UID 不正确",
+                networkSelfBlocked: "你的网络可能无法建立 WebRTC 连接（{detail}）",
+                networkPeerBlocked: "对方网络可能无法建立 WebRTC 连接（{detail}）",
+                networkBothLimited: "双方网络都可能受限，建议在更开放的网络环境下重试",
+                networkLimited: "当前网络受限，WebRTC 连接可能不稳定",
+                networkReason_no_udp: "未收集到 ICE 候选，UDP 可能被阻断",
+                networkReason_symmetric_nat: "对称型 NAT，无法获取公网地址",
+                networkReason_turn_blocked: "TURN 中继不可达",
+                networkReason_ice_failed: "ICE 协商失败",
+                networkReason_checking_timeout: "连接检查超时",
             },
         },
         language: "语言",
@@ -443,6 +465,8 @@ export const translations: Record<string, Translations> = {
             navHome: "Home",
             navBlog: "Blog",
             toastCopied: "Code copied",
+            toastMessageCopied: "Message copied",
+            copyMessage: "Copy message",
             sendingImage: "Sending image...",
             connectionSuccess: "Connection successful",
             connectionFailed: "Connection failed",
@@ -468,6 +492,15 @@ export const translations: Record<string, Translations> = {
                 rejected: "Connection request was rejected.",
                 error: "Signaling error",
                 targetNotFound: "Peer is offline or UID is incorrect.",
+                networkSelfBlocked: "Your network may be unable to establish WebRTC ({detail})",
+                networkPeerBlocked: "The peer's network may be unable to establish WebRTC ({detail})",
+                networkBothLimited: "Both networks may be restricted. Try a more open network.",
+                networkLimited: "Your network is restricted; WebRTC may be unstable.",
+                networkReason_no_udp: "No ICE candidates gathered; UDP may be blocked",
+                networkReason_symmetric_nat: "Symmetric NAT; no public address",
+                networkReason_turn_blocked: "TURN relay unreachable",
+                networkReason_ice_failed: "ICE negotiation failed",
+                networkReason_checking_timeout: "Connection check timed out",
             },
         },
         language: "Language",
@@ -605,6 +638,8 @@ export const translations: Record<string, Translations> = {
             navHome: "Inicio",
             navBlog: "Blog",
             toastCopied: "Código copiado",
+            toastMessageCopied: "Mensaje copiado",
+            copyMessage: "Copiar mensaje",
             sendingImage: "Enviando imagen...",
             connectionSuccess: "Conexión exitosa",
             connectionFailed: "Conexión fallida",
@@ -630,6 +665,15 @@ export const translations: Record<string, Translations> = {
                 rejected: "La solicitud de conexión fue rechazada.",
                 error: "Error de señalización",
                 targetNotFound: "El usuario no está en línea o el UID es incorrecto.",
+                networkSelfBlocked: "Tu red puede no poder establecer WebRTC ({detail})",
+                networkPeerBlocked: "La red del otro usuario puede no poder establecer WebRTC ({detail})",
+                networkBothLimited: "Ambas redes pueden estar restringidas. Prueba una red más abierta.",
+                networkLimited: "Tu red está restringida; WebRTC puede ser inestable.",
+                networkReason_no_udp: "Sin candidatos ICE; UDP puede estar bloqueado",
+                networkReason_symmetric_nat: "NAT simétrico; sin dirección pública",
+                networkReason_turn_blocked: "Relay TURN inaccesible",
+                networkReason_ice_failed: "Falló la negociación ICE",
+                networkReason_checking_timeout: "Tiempo de espera de conexión agotado",
             },
         },
         language: "Idioma",
@@ -767,6 +811,8 @@ export const translations: Record<string, Translations> = {
             navHome: "Главная",
             navBlog: "Блог",
             toastCopied: "Код скопирован",
+            toastMessageCopied: "Сообщение скопировано",
+            copyMessage: "Копировать сообщение",
             sendingImage: "Отправка изображения...",
             connectionSuccess: "Подключено",
             connectionFailed: "Ошибка подключения",
@@ -792,6 +838,15 @@ export const translations: Record<string, Translations> = {
                 rejected: "Запрос на подключение отклонён.",
                 error: "Ошибка сигнализации",
                 targetNotFound: "Пользователь не в сети или неверный UID.",
+                networkSelfBlocked: "Ваша сеть может не поддерживать WebRTC ({detail})",
+                networkPeerBlocked: "Сеть собеседника может не поддерживать WebRTC ({detail})",
+                networkBothLimited: "Обе сети могут быть ограничены. Попробуйте более открытую сеть.",
+                networkLimited: "Сеть ограничена; WebRTC может быть нестабильным.",
+                networkReason_no_udp: "Нет ICE-кандидатов; UDP может быть заблокирован",
+                networkReason_symmetric_nat: "Симметричный NAT; нет публичного адреса",
+                networkReason_turn_blocked: "TURN-релей недоступен",
+                networkReason_ice_failed: "Сбой согласования ICE",
+                networkReason_checking_timeout: "Таймаут проверки соединения",
             },
         },
         language: "Язык",

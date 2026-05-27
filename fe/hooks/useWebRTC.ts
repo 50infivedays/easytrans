@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { formatMessage } from '@/i18n/translations';
 import { Message } from './useWebSocket';
 
 export interface ChatMessage {
@@ -59,6 +60,29 @@ export interface SignalingLabels {
     fileTooLarge: string;
     transferRetryFailed: string;
     largeFileConfirm: string;
+    networkSelfBlocked: string;
+    networkPeerBlocked: string;
+    networkBothLimited: string;
+    networkLimited: string;
+    networkReason_no_udp: string;
+    networkReason_symmetric_nat: string;
+    networkReason_turn_blocked: string;
+    networkReason_ice_failed: string;
+    networkReason_checking_timeout: string;
+}
+
+export type NetworkHealth = 'ok' | 'limited' | 'blocked';
+
+export type NetworkReasonCode =
+    | 'no_udp'
+    | 'symmetric_nat'
+    | 'turn_blocked'
+    | 'ice_failed'
+    | 'checking_timeout';
+
+export interface NetworkDiagnosisPayload {
+    health: NetworkHealth;
+    reasonCode: NetworkReasonCode;
 }
 
 const MAX_BUFFERED_AMOUNT = 256 * 1024;
@@ -67,6 +91,8 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const MAX_RETRY_ATTEMPTS = 5;
 const CHUNK_ACK_TIMEOUT_MS = 2000;
 const PROGRESS_THROTTLE_MS = 250;
+const ICE_CONNECT_TIMEOUT_MS = 45000;
+const PEER_DIAGNOSIS_WAIT_MS = 1500;
 
 function asSessionDescription(data: unknown): RTCSessionDescriptionInit {
     return data as RTCSessionDescriptionInit;
@@ -78,6 +104,80 @@ function asIceCandidateInit(data: unknown): RTCIceCandidateInit {
 
 function isPolitePeer(localUid: string, remoteUid: string): boolean {
     return localUid.localeCompare(remoteUid) < 0;
+}
+
+function parseCandidateType(candidate: string): string | null {
+    const match = candidate.match(/\btyp\s+(\w+)/i);
+    return match ? match[1].toLowerCase() : null;
+}
+
+function asNetworkDiagnosis(data: unknown): NetworkDiagnosisPayload {
+    const payload = data as NetworkDiagnosisPayload;
+    const validHealth: NetworkHealth[] = ['ok', 'limited', 'blocked'];
+    const validReasons: NetworkReasonCode[] = [
+        'no_udp',
+        'symmetric_nat',
+        'turn_blocked',
+        'ice_failed',
+        'checking_timeout',
+    ];
+    const health = validHealth.includes(payload?.health) ? payload.health : 'limited';
+    const reasonCode = validReasons.includes(payload?.reasonCode) ? payload.reasonCode : 'ice_failed';
+    return { health, reasonCode };
+}
+
+function formatReasonDetail(reasonCode: NetworkReasonCode, labels: SignalingLabels): string {
+    const reasonMap: Record<NetworkReasonCode, string> = {
+        no_udp: labels.networkReason_no_udp,
+        symmetric_nat: labels.networkReason_symmetric_nat,
+        turn_blocked: labels.networkReason_turn_blocked,
+        ice_failed: labels.networkReason_ice_failed,
+        checking_timeout: labels.networkReason_checking_timeout,
+    };
+    return reasonMap[reasonCode];
+}
+
+async function collectLocalCandidateTypes(
+    pc: RTCPeerConnection,
+    tracked: Set<string>
+): Promise<Set<string>> {
+    const types = new Set(tracked);
+    try {
+        const stats = await pc.getStats();
+        stats.forEach((report) => {
+            if (report.type === 'local-candidate' && 'candidateType' in report) {
+                const candidateType = String((report as { candidateType?: string }).candidateType);
+                if (candidateType) types.add(candidateType);
+            }
+        });
+    } catch {
+        // getStats may fail if pc is closing
+    }
+    return types;
+}
+
+function classifyLocalNetwork(candidateTypes: Set<string>): NetworkDiagnosisPayload {
+    if (candidateTypes.size === 0) {
+        return { health: 'blocked', reasonCode: 'no_udp' };
+    }
+
+    const hasHost = candidateTypes.has('host');
+    const hasSrflx = candidateTypes.has('srflx') || candidateTypes.has('prflx');
+    const hasRelay = candidateTypes.has('relay');
+
+    if (hasHost && !hasSrflx && !hasRelay) {
+        return { health: 'blocked', reasonCode: 'symmetric_nat' };
+    }
+
+    if (hasRelay && !hasSrflx && candidateTypes.size <= 2) {
+        return { health: 'blocked', reasonCode: 'turn_blocked' };
+    }
+
+    if (hasSrflx || hasRelay) {
+        return { health: 'limited', reasonCode: 'ice_failed' };
+    }
+
+    return { health: 'limited', reasonCode: 'ice_failed' };
 }
 
 function waitForBuffer(channel: RTCDataChannel, maxBuffered = MAX_BUFFERED_AMOUNT): Promise<boolean> {
@@ -150,6 +250,13 @@ export const useWebRTC = (
     }>>(new Map());
     const progressFlushRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const progressPatchesRef = useRef<Map<string, Partial<FileTransfer>>>(new Map());
+    const localCandidateTypesRef = useRef<Set<string>>(new Set());
+    const peerDiagnosisRef = useRef<NetworkDiagnosisPayload | null>(null);
+    const connectAttemptRef = useRef(0);
+    const iceConnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const peerDiagnosisWaitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingLocalDiagnosisRef = useRef<NetworkDiagnosisPayload | null>(null);
+    const failureNotifiedRef = useRef(false);
 
     const flushProgressUpdates = useCallback((immediate = false) => {
         const run = () => {
@@ -207,6 +314,145 @@ export const useWebRTC = (
         onNotify?.(message, type);
     }, [onNotify]);
 
+    const clearIceConnectTimeout = useCallback(() => {
+        if (iceConnectTimeoutRef.current) {
+            clearTimeout(iceConnectTimeoutRef.current);
+            iceConnectTimeoutRef.current = null;
+        }
+    }, []);
+
+    const clearPeerDiagnosisWait = useCallback(() => {
+        if (peerDiagnosisWaitRef.current) {
+            clearTimeout(peerDiagnosisWaitRef.current);
+            peerDiagnosisWaitRef.current = null;
+        }
+    }, []);
+
+    const resetNetworkDiagnostics = useCallback(() => {
+        localCandidateTypesRef.current = new Set();
+        peerDiagnosisRef.current = null;
+        pendingLocalDiagnosisRef.current = null;
+        failureNotifiedRef.current = false;
+        clearIceConnectTimeout();
+        clearPeerDiagnosisWait();
+    }, [clearIceConnectTimeout, clearPeerDiagnosisWait]);
+
+    const showFailureToasts = useCallback((
+        local: NetworkDiagnosisPayload,
+        peer: NetworkDiagnosisPayload | null
+    ) => {
+        const localDetail = formatReasonDetail(local.reasonCode, signalingLabels);
+
+        if (local.health === 'blocked') {
+            failureNotifiedRef.current = true;
+            notify(formatMessage(signalingLabels.networkSelfBlocked, { detail: localDetail }), 'error');
+            return;
+        }
+
+        if (failureNotifiedRef.current) return;
+        failureNotifiedRef.current = true;
+
+        if (peer?.health === 'blocked') {
+            const peerDetail = formatReasonDetail(peer.reasonCode, signalingLabels);
+            notify(formatMessage(signalingLabels.networkPeerBlocked, { detail: peerDetail }), 'error');
+            return;
+        }
+
+        if (local.health === 'limited' && peer?.health === 'limited') {
+            notify(signalingLabels.networkBothLimited, 'error');
+            return;
+        }
+
+        if (local.health === 'limited') {
+            notify(signalingLabels.networkLimited, 'error');
+            return;
+        }
+
+        notify(signalingLabels.p2pFailed, 'error');
+    }, [notify, signalingLabels]);
+
+    const finalizeFailureNotifications = useCallback((local: NetworkDiagnosisPayload) => {
+        pendingLocalDiagnosisRef.current = local;
+        clearPeerDiagnosisWait();
+
+        peerDiagnosisWaitRef.current = setTimeout(() => {
+            peerDiagnosisWaitRef.current = null;
+            const pending = pendingLocalDiagnosisRef.current;
+            if (!pending) return;
+            pendingLocalDiagnosisRef.current = null;
+            showFailureToasts(pending, peerDiagnosisRef.current);
+        }, PEER_DIAGNOSIS_WAIT_MS);
+    }, [clearPeerDiagnosisWait, showFailureToasts]);
+
+    const publishLocalDiagnosis = useCallback((local: NetworkDiagnosisPayload) => {
+        const target = currentTargetRef.current;
+        if (!target) return;
+
+        sendSignalingMessage({
+            type: 'network-diagnosis',
+            to: target,
+            data: local,
+        });
+    }, [sendSignalingMessage]);
+
+    const handleConnectionFailure = useCallback((trigger: 'ice_failed' | 'timeout') => {
+        const attemptId = connectAttemptRef.current;
+        const pc = pcRef.current;
+
+        void (async () => {
+            const types = pc
+                ? await collectLocalCandidateTypes(pc, localCandidateTypesRef.current)
+                : new Set(localCandidateTypesRef.current);
+
+            if (attemptId !== connectAttemptRef.current) return;
+
+            let local = classifyLocalNetwork(types);
+            if (trigger === 'timeout' && local.health !== 'blocked') {
+                local = { health: 'limited', reasonCode: 'checking_timeout' };
+            }
+
+            publishLocalDiagnosis(local);
+            finalizeFailureNotifications(local);
+        })();
+    }, [finalizeFailureNotifications, publishLocalDiagnosis]);
+
+    const handlePeerNetworkDiagnosis = useCallback((peer: NetworkDiagnosisPayload) => {
+        peerDiagnosisRef.current = peer;
+
+        if (pendingLocalDiagnosisRef.current) {
+            clearPeerDiagnosisWait();
+            const local = pendingLocalDiagnosisRef.current;
+            pendingLocalDiagnosisRef.current = null;
+            showFailureToasts(local, peer);
+            return;
+        }
+
+        const channelOpen = dataChannelRef.current?.readyState === 'open';
+        if (peer.health === 'blocked' && !channelOpen && !failureNotifiedRef.current) {
+            const peerDetail = formatReasonDetail(peer.reasonCode, signalingLabels);
+            failureNotifiedRef.current = true;
+            notify(formatMessage(signalingLabels.networkPeerBlocked, { detail: peerDetail }), 'error');
+        }
+    }, [clearPeerDiagnosisWait, notify, showFailureToasts, signalingLabels]);
+
+    const startIceConnectTimeout = useCallback(() => {
+        clearIceConnectTimeout();
+        const attemptId = connectAttemptRef.current;
+
+        iceConnectTimeoutRef.current = setTimeout(() => {
+            iceConnectTimeoutRef.current = null;
+            if (attemptId !== connectAttemptRef.current) return;
+            if (isConnected || dataChannelRef.current?.readyState === 'open') return;
+
+            const pc = pcRef.current;
+            const iceState = pc?.iceConnectionState;
+            if (iceState === 'connected' || iceState === 'completed') return;
+
+            console.warn('ICE connection timed out');
+            handleConnectionFailure('timeout');
+        }, ICE_CONNECT_TIMEOUT_MS);
+    }, [clearIceConnectTimeout, handleConnectionFailure, isConnected]);
+
     const resetConnectionState = useCallback(() => {
         currentTargetRef.current = null;
         makingOfferRef.current = false;
@@ -218,13 +464,17 @@ export const useWebRTC = (
             waiter.reject();
         }
         chunkAckWaitersRef.current.clear();
+        connectAttemptRef.current += 1;
+        resetNetworkDiagnostics();
         setIsConnected(false);
         setConnectedPeerId(null);
         setShowOfferConfirm(false);
         setOfferFrom(null);
-    }, []);
+    }, [resetNetworkDiagnostics]);
 
     const cleanupPeerConnection = useCallback(() => {
+        clearIceConnectTimeout();
+        clearPeerDiagnosisWait();
         if (dataChannelRef.current) {
             dataChannelRef.current.close();
             dataChannelRef.current = null;
@@ -233,7 +483,7 @@ export const useWebRTC = (
             pcRef.current.close();
             pcRef.current = null;
         }
-    }, []);
+    }, [clearIceConnectTimeout, clearPeerDiagnosisWait]);
 
     const handleFileTransferStart = useCallback((data: FileTransferStartPayload) => {
         receivingFilesRef.current.set(data.transferId, {
@@ -356,6 +606,8 @@ export const useWebRTC = (
 
     const setupDataChannel = useCallback((channel: RTCDataChannel) => {
         channel.onopen = () => {
+            clearIceConnectTimeout();
+            resetNetworkDiagnostics();
             setIsConnected(true);
             if (currentTargetRef.current) {
                 setConnectedPeerId(currentTargetRef.current);
@@ -402,7 +654,7 @@ export const useWebRTC = (
         };
 
         dataChannelRef.current = channel;
-    }, [handleFileChunk, handleFileTransferEnd, handleFileTransferStart, handleFileChunkInfo, resolveChunkAck]);
+    }, [clearIceConnectTimeout, handleFileChunk, handleFileTransferEnd, handleFileTransferStart, handleFileChunkInfo, resetNetworkDiagnostics, resolveChunkAck]);
 
     const createPeerConnection = useCallback(() => {
         const rtcConfig: RTCConfiguration = {
@@ -433,14 +685,22 @@ export const useWebRTC = (
         };
 
         const pc = new RTCPeerConnection(rtcConfig);
+        localCandidateTypesRef.current = new Set();
 
         pc.onicecandidate = (event) => {
-            if (event.candidate && currentTargetRef.current) {
-                sendSignalingMessage({
-                    type: 'ice-candidate',
-                    to: currentTargetRef.current,
-                    data: event.candidate.toJSON(),
-                });
+            if (event.candidate) {
+                const candidateType = parseCandidateType(event.candidate.candidate);
+                if (candidateType) {
+                    localCandidateTypesRef.current.add(candidateType);
+                }
+
+                if (currentTargetRef.current) {
+                    sendSignalingMessage({
+                        type: 'ice-candidate',
+                        to: currentTargetRef.current,
+                        data: event.candidate.toJSON(),
+                    });
+                }
             }
         };
 
@@ -449,9 +709,14 @@ export const useWebRTC = (
         };
 
         pc.oniceconnectionstatechange = () => {
-            if (pc.iceConnectionState === 'failed') {
+            const state = pc.iceConnectionState;
+            if (state === 'connected' || state === 'completed') {
+                clearIceConnectTimeout();
+                return;
+            }
+            if (state === 'failed') {
                 console.warn('ICE connection failed');
-                notify(signalingLabels.p2pFailed, 'error');
+                handleConnectionFailure('ice_failed');
             }
         };
 
@@ -460,7 +725,7 @@ export const useWebRTC = (
         };
 
         return pc;
-    }, [notify, sendSignalingMessage, setupDataChannel, signalingLabels]);
+    }, [clearIceConnectTimeout, handleConnectionFailure, sendSignalingMessage, setupDataChannel]);
 
     const addIceCandidate = useCallback(async (candidateInit: RTCIceCandidateInit) => {
         const pc = pcRef.current;
@@ -500,6 +765,8 @@ export const useWebRTC = (
         if (!normalizedTarget) return;
 
         currentTargetRef.current = normalizedTarget;
+        connectAttemptRef.current += 1;
+        resetNetworkDiagnostics();
         cleanupPeerConnection();
 
         const pc = createPeerConnection();
@@ -523,7 +790,9 @@ export const useWebRTC = (
         } finally {
             makingOfferRef.current = false;
         }
-    }, [cleanupPeerConnection, createPeerConnection, notify, sendSignalingMessage, setupDataChannel, signalingLabels]);
+
+        startIceConnectTimeout();
+    }, [cleanupPeerConnection, createPeerConnection, notify, resetNetworkDiagnostics, sendSignalingMessage, setupDataChannel, signalingLabels, startIceConnectTimeout]);
 
     const sendMessage = useCallback((text: string) => {
         const channel = dataChannelRef.current;
@@ -695,6 +964,8 @@ export const useWebRTC = (
 
         try {
             currentTargetRef.current = from;
+            connectAttemptRef.current += 1;
+            resetNetworkDiagnostics();
             cleanupPeerConnection();
 
             const pc = createPeerConnection();
@@ -711,12 +982,14 @@ export const useWebRTC = (
                 to: from,
                 data: answer,
             });
+
+            startIceConnectTimeout();
         } catch (error) {
             console.error('Error handling confirmed offer:', error);
             notify(signalingLabels.acceptFailed, 'error');
             resetConnectionState();
         }
-    }, [cleanupPeerConnection, createPeerConnection, flushPendingIceCandidates, notify, resetConnectionState, sendSignalingMessage, signalingLabels]);
+    }, [cleanupPeerConnection, createPeerConnection, flushPendingIceCandidates, notify, resetConnectionState, resetNetworkDiagnostics, sendSignalingMessage, signalingLabels, startIceConnectTimeout]);
 
     const rejectOffer = useCallback(() => {
         if (!pendingOfferRef.current) return;
@@ -826,6 +1099,10 @@ export const useWebRTC = (
                     break;
                 }
 
+                case 'network-diagnosis':
+                    handlePeerNetworkDiagnosis(asNetworkDiagnosis(message.data));
+                    break;
+
                 default:
                     break;
             }
@@ -839,6 +1116,7 @@ export const useWebRTC = (
         flushPendingIceCandidates,
         handleIncomingOffer,
         handleOfferRejected,
+        handlePeerNetworkDiagnosis,
         handleRemoteDisconnect,
         notify,
         signalingLabels,

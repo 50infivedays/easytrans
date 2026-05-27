@@ -319,7 +319,7 @@ func (h *Hub) handleMessage(msg *Message) {
 	log.Printf("🔄 Handling message: Type=%s, From=%s, To=%s", msg.Type, msg.From, msg.To)
 
 	switch msg.Type {
-	case "offer", "answer", "ice-candidate", "disconnect", "offer-rejected":
+	case "offer", "answer", "ice-candidate", "disconnect", "offer-rejected", "network-diagnosis":
 		log.Printf("📡 Relaying signaling message: %s from %s to %s", msg.Type, msg.From, msg.To)
 		h.relaySignaling(msg)
 	case "ping":

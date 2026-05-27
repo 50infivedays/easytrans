@@ -20,6 +20,7 @@ const SIGNALING_TYPES = new Set([
     'ice-candidate',
     'disconnect',
     'offer-rejected',
+    'network-diagnosis',
     'error',
 ]);
 
