@@ -131,6 +131,12 @@ export interface Translations {
             p2pFailed: string;
             startFailed: string;
             transferLost: string;
+            transferRetryFailed: string;
+            fileTooLarge: string;
+            largeFileConfirm: string;
+            largeFileConfirmTitle: string;
+            largeFileConfirmContinueText: string;
+            largeFileConfirmCancelText: string;
             acceptFailed: string;
             peerDisconnected: string;
             rejected: string;
@@ -289,6 +295,12 @@ export const translations: Record<string, Translations> = {
                 p2pFailed: "P2P 连接失败，请重试",
                 startFailed: "无法发起连接",
                 transferLost: "文件传输中断，连接已断开",
+                transferRetryFailed: "文件传输失败：网络不稳定，已多次重试仍未成功",
+                fileTooLarge: "文件太大了（最大 100MB）",
+                largeFileConfirm: "文件较大（{sizeMB}MB），传输可能需要约 {minutes} 分钟，且在弱网下可能失败。是否继续？",
+                largeFileConfirmTitle: "大文件传输提示",
+                largeFileConfirmContinueText: "继续发送",
+                largeFileConfirmCancelText: "取消",
                 acceptFailed: "接受连接失败",
                 peerDisconnected: "对方已断开连接",
                 rejected: "对方拒绝了连接请求",
@@ -445,6 +457,12 @@ export const translations: Record<string, Translations> = {
                 p2pFailed: "P2P connection failed. Try reconnecting.",
                 startFailed: "Failed to start connection.",
                 transferLost: "File transfer interrupted — connection lost.",
+                transferRetryFailed: "File transfer failed after multiple retries.",
+                fileTooLarge: "File is too large (max 100MB).",
+                largeFileConfirm: "This file is large ({sizeMB}MB). Transfer may take about {minutes} minute(s) and can fail on weak networks. Continue?",
+                largeFileConfirmTitle: "Large file transfer",
+                largeFileConfirmContinueText: "Continue",
+                largeFileConfirmCancelText: "Cancel",
                 acceptFailed: "Failed to accept connection.",
                 peerDisconnected: "Peer disconnected.",
                 rejected: "Connection request was rejected.",
@@ -601,6 +619,12 @@ export const translations: Record<string, Translations> = {
                 p2pFailed: "Falló la conexión P2P. Intenta de nuevo.",
                 startFailed: "No se pudo iniciar la conexión.",
                 transferLost: "Transferencia interrumpida — conexión perdida.",
+                transferRetryFailed: "La transferencia falló tras varios reintentos.",
+                fileTooLarge: "El archivo es demasiado grande (máx. 100MB).",
+                largeFileConfirm: "Este archivo es grande ({sizeMB}MB). La transferencia puede tardar unos {minutes} minuto(s) y fallar con red inestable. ¿Continuar?",
+                largeFileConfirmTitle: "Transferencia de archivo grande",
+                largeFileConfirmContinueText: "Continuar",
+                largeFileConfirmCancelText: "Cancelar",
                 acceptFailed: "No se pudo aceptar la conexión.",
                 peerDisconnected: "El otro usuario se desconectó.",
                 rejected: "La solicitud de conexión fue rechazada.",
@@ -757,6 +781,12 @@ export const translations: Record<string, Translations> = {
                 p2pFailed: "P2P-соединение не удалось. Попробуйте снова.",
                 startFailed: "Не удалось начать подключение.",
                 transferLost: "Передача прервана — соединение потеряно.",
+                transferRetryFailed: "Передача не удалась после нескольких повторных попыток.",
+                fileTooLarge: "Файл слишком большой (максимум 100MB).",
+                largeFileConfirm: "Файл большой ({sizeMB}MB). Передача может занять около {minutes} мин. и при слабой сети завершиться ошибкой. Продолжить?",
+                largeFileConfirmTitle: "Передача большого файла",
+                largeFileConfirmContinueText: "Продолжить",
+                largeFileConfirmCancelText: "Отмена",
                 acceptFailed: "Не удалось принять подключение.",
                 peerDisconnected: "Собеседник отключился.",
                 rejected: "Запрос на подключение отклонён.",

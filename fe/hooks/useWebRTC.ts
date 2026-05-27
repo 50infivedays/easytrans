@@ -26,6 +26,7 @@ interface FileTransferStartPayload {
     transferId: string;
     fileName: string;
     fileSize: number;
+    totalChunks: number;
 }
 
 interface FileChunkInfoPayload {
@@ -55,10 +56,16 @@ export interface SignalingLabels {
     rejected: string;
     error: string;
     targetNotFound: string;
+    fileTooLarge: string;
+    transferRetryFailed: string;
+    largeFileConfirm: string;
 }
 
 const MAX_BUFFERED_AMOUNT = 256 * 1024;
 const CHUNK_SIZE = 16384;
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
+const MAX_RETRY_ATTEMPTS = 5;
+const CHUNK_ACK_TIMEOUT_MS = 2000;
 const PROGRESS_THROTTLE_MS = 250;
 
 function asSessionDescription(data: unknown): RTCSessionDescriptionInit {
@@ -126,9 +133,21 @@ export const useWebRTC = (
     const pendingICECandidatesRef = useRef<RTCIceCandidate[]>([]);
     const currentTargetRef = useRef<string | null>(null);
     const makingOfferRef = useRef(false);
-    const pendingChunkTransferIdRef = useRef<string | null>(null);
+    const pendingChunkMetaRef = useRef<{ transferId: string; chunkIndex: number } | null>(null);
     const fileTransferRef = useRef<Map<string, FileTransfer>>(new Map());
-    const receivingFilesRef = useRef<Map<string, { chunks: ArrayBuffer[]; receivedSize: number; totalSize: number; fileName: string }>>(new Map());
+    const receivingFilesRef = useRef<Map<string, {
+        chunks: ArrayBuffer[];
+        receivedChunkIndexes: Set<number>;
+        receivedSize: number;
+        totalSize: number;
+        fileName: string;
+        totalChunks: number;
+    }>>(new Map());
+    const chunkAckWaitersRef = useRef<Map<string, {
+        resolve: () => void;
+        reject: () => void;
+        timer: ReturnType<typeof setTimeout>;
+    }>>(new Map());
     const progressFlushRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const progressPatchesRef = useRef<Map<string, Partial<FileTransfer>>>(new Map());
 
@@ -163,6 +182,27 @@ export const useWebRTC = (
         flushProgressUpdates(immediate);
     }, [flushProgressUpdates]);
 
+    const resolveChunkAck = useCallback((transferId: string, chunkIndex: number) => {
+        const key = `${transferId}:${chunkIndex}`;
+        const waiter = chunkAckWaitersRef.current.get(key);
+        if (!waiter) return;
+        clearTimeout(waiter.timer);
+        chunkAckWaitersRef.current.delete(key);
+        waiter.resolve();
+    }, []);
+
+    const waitForChunkAck = useCallback((transferId: string, chunkIndex: number) => {
+        const key = `${transferId}:${chunkIndex}`;
+        return new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(() => {
+                chunkAckWaitersRef.current.delete(key);
+                reject(new Error('ack timeout'));
+            }, CHUNK_ACK_TIMEOUT_MS);
+
+            chunkAckWaitersRef.current.set(key, { resolve, reject, timer });
+        });
+    }, []);
+
     const notify = useCallback((message: string, type: NotifyType = 'info') => {
         onNotify?.(message, type);
     }, [onNotify]);
@@ -170,9 +210,14 @@ export const useWebRTC = (
     const resetConnectionState = useCallback(() => {
         currentTargetRef.current = null;
         makingOfferRef.current = false;
-        pendingChunkTransferIdRef.current = null;
+        pendingChunkMetaRef.current = null;
         pendingICECandidatesRef.current = [];
         pendingOfferRef.current = null;
+        for (const waiter of chunkAckWaitersRef.current.values()) {
+            clearTimeout(waiter.timer);
+            waiter.reject();
+        }
+        chunkAckWaitersRef.current.clear();
         setIsConnected(false);
         setConnectedPeerId(null);
         setShowOfferConfirm(false);
@@ -192,10 +237,12 @@ export const useWebRTC = (
 
     const handleFileTransferStart = useCallback((data: FileTransferStartPayload) => {
         receivingFilesRef.current.set(data.transferId, {
-            chunks: [],
+            chunks: new Array(data.totalChunks),
+            receivedChunkIndexes: new Set<number>(),
             receivedSize: 0,
             totalSize: data.fileSize,
             fileName: data.fileName,
+            totalChunks: data.totalChunks,
         });
 
         setFileTransfers((prev) => [
@@ -211,38 +258,68 @@ export const useWebRTC = (
     }, []);
 
     const handleFileChunkInfo = useCallback((data: FileChunkInfoPayload) => {
-        pendingChunkTransferIdRef.current = data.transferId;
+        pendingChunkMetaRef.current = {
+            transferId: data.transferId,
+            chunkIndex: data.chunkIndex,
+        };
         queueProgressUpdate(data.transferId, {
             progress: ((data.chunkIndex + 1) / data.totalChunks) * 100,
         });
     }, [queueProgressUpdate]);
 
     const handleFileChunk = useCallback((chunk: ArrayBuffer) => {
-        const transferId = pendingChunkTransferIdRef.current;
-        pendingChunkTransferIdRef.current = null;
-        if (!transferId) return;
+        const chunkMeta = pendingChunkMetaRef.current;
+        pendingChunkMetaRef.current = null;
+        if (!chunkMeta) return;
+        const { transferId, chunkIndex } = chunkMeta;
 
         const fileInfo = receivingFilesRef.current.get(transferId);
         if (!fileInfo) return;
 
-        fileInfo.chunks.push(chunk);
+        if (fileInfo.receivedChunkIndexes.has(chunkIndex)) {
+            dataChannelRef.current?.send(JSON.stringify({
+                type: 'file-ack',
+                transferId,
+                chunkIndex,
+            }));
+            return;
+        }
+
+        fileInfo.chunks[chunkIndex] = chunk;
+        fileInfo.receivedChunkIndexes.add(chunkIndex);
         fileInfo.receivedSize += chunk.byteLength;
 
         queueProgressUpdate(transferId, {
             progress: (fileInfo.receivedSize / fileInfo.totalSize) * 100,
         });
+
+        dataChannelRef.current?.send(JSON.stringify({
+            type: 'file-ack',
+            transferId,
+            chunkIndex,
+        }));
     }, [queueProgressUpdate]);
 
     const handleFileTransferEnd = useCallback((data: FileTransferEndPayload) => {
         const fileInfo = receivingFilesRef.current.get(data.transferId);
         if (!fileInfo) return;
 
-        const totalSize = fileInfo.chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+        if (fileInfo.receivedChunkIndexes.size !== fileInfo.totalChunks) {
+            setFileTransfers((prev) => prev.map((transfer) => (
+                transfer.id === data.transferId ? { ...transfer, status: 'failed' } : transfer
+            )));
+            notify(signalingLabels.transferLost, 'error');
+            receivingFilesRef.current.delete(data.transferId);
+            return;
+        }
+
+        const totalSize = fileInfo.chunks.reduce((sum, chunk) => sum + (chunk?.byteLength ?? 0), 0);
         const combinedBuffer = new ArrayBuffer(totalSize);
         const uint8Array = new Uint8Array(combinedBuffer);
 
         let offset = 0;
         for (const chunk of fileInfo.chunks) {
+            if (!chunk) continue;
             uint8Array.set(new Uint8Array(chunk), offset);
             offset += chunk.byteLength;
         }
@@ -275,7 +352,7 @@ export const useWebRTC = (
         ]);
 
         receivingFilesRef.current.delete(data.transferId);
-    }, [flushProgressUpdates]);
+    }, [flushProgressUpdates, notify, signalingLabels.transferLost]);
 
     const setupDataChannel = useCallback((channel: RTCDataChannel) => {
         channel.onopen = () => {
@@ -316,6 +393,8 @@ export const useWebRTC = (
                     handleFileChunkInfo(data);
                 } else if (data.type === 'file-end') {
                     handleFileTransferEnd(data);
+                } else if (data.type === 'file-ack') {
+                    resolveChunkAck(data.transferId, data.chunkIndex);
                 }
             } catch (error) {
                 console.error('Error parsing data channel message:', error);
@@ -323,7 +402,7 @@ export const useWebRTC = (
         };
 
         dataChannelRef.current = channel;
-    }, [handleFileChunk, handleFileTransferEnd, handleFileTransferStart, handleFileChunkInfo]);
+    }, [handleFileChunk, handleFileTransferEnd, handleFileTransferStart, handleFileChunkInfo, resolveChunkAck]);
 
     const createPeerConnection = useCallback(() => {
         const rtcConfig: RTCConfiguration = {
@@ -478,6 +557,11 @@ export const useWebRTC = (
             return;
         }
 
+        if (file.size > MAX_FILE_SIZE) {
+            notify(signalingLabels.fileTooLarge, 'error');
+            return;
+        }
+
         const transferId = Date.now().toString();
         const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
@@ -528,13 +612,34 @@ export const useWebRTC = (
                 return;
             }
 
-            channel.send(JSON.stringify({
-                type: 'file-chunk',
-                transferId,
-                chunkIndex,
-                totalChunks,
-            }));
-            channel.send(buffer);
+            let acknowledged = false;
+            for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt++) {
+                channel.send(JSON.stringify({
+                    type: 'file-chunk',
+                    transferId,
+                    chunkIndex,
+                    totalChunks,
+                }));
+                channel.send(buffer);
+                try {
+                    await waitForChunkAck(transferId, chunkIndex);
+                    acknowledged = true;
+                    break;
+                } catch {
+                    if (attempt === MAX_RETRY_ATTEMPTS - 1) {
+                        break;
+                    }
+                }
+            }
+
+            if (!acknowledged) {
+                notify(signalingLabels.transferRetryFailed, 'error');
+                setFileTransfers((prev) => prev.map((transfer) => (
+                    transfer.id === transferId ? { ...transfer, status: 'failed' } : transfer
+                )));
+                fileTransferRef.current.delete(transferId);
+                return;
+            }
 
             queueProgressUpdate(transferId, {
                 progress: ((chunkIndex + 1) / totalChunks) * 100,
@@ -565,7 +670,7 @@ export const useWebRTC = (
         ]);
 
         fileTransferRef.current.delete(transferId);
-    }, [notify, queueProgressUpdate, signalingLabels]);
+    }, [notify, queueProgressUpdate, signalingLabels, waitForChunkAck]);
 
     const disconnect = useCallback(() => {
         if (currentTargetRef.current) {

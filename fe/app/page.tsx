@@ -44,6 +44,9 @@ export default function Home() {
   const { language } = useLanguage();
   const [targetId, setTargetId] = useState('');
   const [messageInput, setMessageInput] = useState('');
+  const [showLargeFileConfirm, setShowLargeFileConfirm] = useState(false);
+  const [pendingLargeFile, setPendingLargeFile] = useState<File | null>(null);
+  const [pendingLargeFileKind, setPendingLargeFileKind] = useState<'file' | 'image'>('file');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
@@ -90,6 +93,10 @@ export default function Home() {
   const displayUid = uid || t.myUid.getting;
   const peerCode = (connectedPeerId || targetId || '').toUpperCase();
 
+  const MAX_FILE_SIZE = 100 * 1024 * 1024;
+  const LARGE_FILE_WARNING_SIZE = 30 * 1024 * 1024;
+  const ESTIMATED_TRANSFER_SPEED_BYTES_PER_SEC = 3 * 1024 * 1024;
+
   const handleConnect = () => {
     if (targetId.trim()) {
       hasAttemptedConnection.current = true;
@@ -112,9 +119,30 @@ export default function Home() {
     }
   };
 
+  const openLargeFileConfirm = useCallback((file: File, kind: 'file' | 'image') => {
+    setPendingLargeFile(file);
+    setPendingLargeFileKind(kind);
+    setShowLargeFileConfirm(true);
+  }, []);
+
+  const closeLargeFileConfirm = useCallback(() => {
+    setShowLargeFileConfirm(false);
+    setPendingLargeFile(null);
+    setPendingLargeFileKind('file');
+  }, []);
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) sendFile(file);
+    if (file) {
+      if (file.size > MAX_FILE_SIZE) {
+        // Let the hook reject & toast the proper message.
+        sendFile(file);
+      } else if (file.size >= LARGE_FILE_WARNING_SIZE) {
+        openLargeFileConfirm(file, 'file');
+      } else {
+        sendFile(file);
+      }
+    }
     event.target.value = '';
   };
 
@@ -129,10 +157,16 @@ export default function Home() {
         event.stopPropagation();
         const file = item.getAsFile();
         if (file) {
-          sendFile(file);
-          setToastMessage(w.sendingImage);
-          setToastType('info');
-          setShowToast(true);
+          if (file.size > MAX_FILE_SIZE) {
+            sendFile(file);
+          } else if (file.size >= LARGE_FILE_WARNING_SIZE) {
+            openLargeFileConfirm(file, 'image');
+          } else {
+            sendFile(file);
+            setToastMessage(w.sendingImage);
+            setToastType('info');
+            setShowToast(true);
+          }
         }
         break;
       }
@@ -536,6 +570,42 @@ export default function Home() {
         cancelText={t.offerConfirm.reject}
         onConfirm={confirmOffer}
         onCancel={rejectOffer}
+      />
+
+      <Dialog
+        isOpen={showLargeFileConfirm}
+        onClose={closeLargeFileConfirm}
+        title={w.signaling.largeFileConfirmTitle}
+        description={
+          pendingLargeFile
+            ? formatMessage(w.signaling.largeFileConfirm, {
+                sizeMB: (pendingLargeFile.size / (1024 * 1024)).toFixed(1),
+                minutes: Math.max(
+                  1,
+                  Math.ceil(
+                    pendingLargeFile.size / ESTIMATED_TRANSFER_SPEED_BYTES_PER_SEC / 60
+                  )
+                ),
+              })
+            : ''
+        }
+        confirmText={w.signaling.largeFileConfirmContinueText}
+        cancelText={w.signaling.largeFileConfirmCancelText}
+        onConfirm={() => {
+          if (!pendingLargeFile) return;
+          const file = pendingLargeFile;
+          const kind = pendingLargeFileKind;
+          if (kind === 'image') {
+            setToastMessage(w.sendingImage);
+            setToastType('info');
+            setShowToast(true);
+          }
+          setShowLargeFileConfirm(false);
+          setPendingLargeFile(null);
+          setPendingLargeFileKind('file');
+          sendFile(file);
+        }}
+        onCancel={closeLargeFileConfirm}
       />
 
       <QRScanner
