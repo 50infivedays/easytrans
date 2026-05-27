@@ -34,10 +34,10 @@ export const QRCodeComponent: React.FC<QRCodeProps> = ({
     if (!value) {
         return (
             <div
-                className={`bg-gray-100 flex items-center justify-center ${className}`}
+                className={`qr-placeholder ${className}`}
                 style={{ width: size, height: size }}
             >
-                <span className="text-gray-400 text-xs">等待UID...</span>
+                <span>…</span>
             </div>
         );
     }
@@ -46,7 +46,10 @@ export const QRCodeComponent: React.FC<QRCodeProps> = ({
         <canvas
             ref={canvasRef}
             className={className}
+            width={size}
+            height={size}
             style={{ width: size, height: size }}
+            aria-hidden
         />
     );
 }; 

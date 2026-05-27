@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { getBrowserLanguage } from '@/i18n/translations';
 
 interface LanguageContextType {
@@ -10,21 +10,14 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+function readInitialLanguage(): string {
+  if (typeof window === 'undefined') return 'en';
+  return localStorage.getItem('webdrop-language') || getBrowserLanguage();
+}
+
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<string>('en');
+  const [language, setLanguageState] = useState(readInitialLanguage);
 
-  // 初始化语言设置
-  useEffect(() => {
-    const savedLanguage = localStorage.getItem('webdrop-language');
-    if (savedLanguage) {
-      setLanguageState(savedLanguage);
-    } else {
-      const browserLanguage = getBrowserLanguage();
-      setLanguageState(browserLanguage);
-    }
-  }, []);
-
-  // 保存语言设置到 localStorage
   const setLanguage = (newLanguage: string) => {
     setLanguageState(newLanguage);
     localStorage.setItem('webdrop-language', newLanguage);
@@ -44,4 +37,3 @@ export function useLanguage() {
   }
   return context;
 }
-

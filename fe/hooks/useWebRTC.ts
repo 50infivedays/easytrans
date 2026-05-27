@@ -22,6 +22,74 @@ export interface FileTransfer {
     data?: ArrayBuffer;
 }
 
+interface FileTransferStartPayload {
+    transferId: string;
+    fileName: string;
+    fileSize: number;
+}
+
+interface FileChunkInfoPayload {
+    transferId: string;
+    chunkIndex: number;
+    totalChunks: number;
+}
+
+interface FileTransferEndPayload {
+    transferId: string;
+}
+
+interface PendingOffer {
+    from: string;
+    data: RTCSessionDescriptionInit;
+}
+
+type NotifyType = 'success' | 'error' | 'info';
+
+export interface SignalingLabels {
+    notReady: string;
+    p2pFailed: string;
+    startFailed: string;
+    transferLost: string;
+    acceptFailed: string;
+    peerDisconnected: string;
+    rejected: string;
+    error: string;
+    targetNotFound: string;
+}
+
+const MAX_BUFFERED_AMOUNT = 256 * 1024;
+const CHUNK_SIZE = 16384;
+const PROGRESS_THROTTLE_MS = 250;
+
+function asSessionDescription(data: unknown): RTCSessionDescriptionInit {
+    return data as RTCSessionDescriptionInit;
+}
+
+function asIceCandidateInit(data: unknown): RTCIceCandidateInit {
+    return data as RTCIceCandidateInit;
+}
+
+function isPolitePeer(localUid: string, remoteUid: string): boolean {
+    return localUid.localeCompare(remoteUid) < 0;
+}
+
+function waitForBuffer(channel: RTCDataChannel, maxBuffered = MAX_BUFFERED_AMOUNT): Promise<boolean> {
+    return new Promise((resolve) => {
+        const check = () => {
+            if (channel.readyState !== 'open') {
+                resolve(false);
+                return;
+            }
+            if (channel.bufferedAmount <= maxBuffered) {
+                resolve(true);
+                return;
+            }
+            setTimeout(check, 20);
+        };
+        check();
+    });
+}
+
 export interface UseWebRTCReturn {
     isConnected: boolean;
     messages: ChatMessage[];
@@ -30,506 +98,88 @@ export interface UseWebRTCReturn {
     sendMessage: (text: string) => void;
     sendFile: (file: File) => void;
     disconnect: () => void;
-    // 新增确认框相关状态
     showOfferConfirm: boolean;
     offerFrom: string | null;
     confirmOffer: () => void;
     rejectOffer: () => void;
-    // 新增当前连接的对方ID
     connectedPeerId: string | null;
 }
 
 export const useWebRTC = (
     sendSignalingMessage: (message: Message) => void,
-    lastSignalingMessage: Message | null
+    drainSignalingMessages: () => Message[],
+    signalingRevision: number,
+    localUid: string | null,
+    signalingLabels: SignalingLabels,
+    onNotify?: (message: string, type: NotifyType) => void
 ): UseWebRTCReturn => {
     const [isConnected, setIsConnected] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [fileTransfers, setFileTransfers] = useState<FileTransfer[]>([]);
-
-    // 新增确认框状态
     const [showOfferConfirm, setShowOfferConfirm] = useState(false);
     const [offerFrom, setOfferFrom] = useState<string | null>(null);
-    const pendingOfferRef = useRef<{ from: string; data: any } | null>(null);
-
-    // 新增当前连接的对方ID状态
     const [connectedPeerId, setConnectedPeerId] = useState<string | null>(null);
 
+    const pendingOfferRef = useRef<PendingOffer | null>(null);
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const dataChannelRef = useRef<RTCDataChannel | null>(null);
     const pendingICECandidatesRef = useRef<RTCIceCandidate[]>([]);
     const currentTargetRef = useRef<string | null>(null);
-
-    // File transfer state
+    const makingOfferRef = useRef(false);
+    const pendingChunkTransferIdRef = useRef<string | null>(null);
     const fileTransferRef = useRef<Map<string, FileTransfer>>(new Map());
-    const receivingFilesRef = useRef<Map<string, { chunks: ArrayBuffer[], receivedSize: number, totalSize: number, fileName: string }>>(new Map());
+    const receivingFilesRef = useRef<Map<string, { chunks: ArrayBuffer[]; receivedSize: number; totalSize: number; fileName: string }>>(new Map());
+    const progressFlushRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const progressPatchesRef = useRef<Map<string, Partial<FileTransfer>>>(new Map());
 
-
-    const handleFileTransferStart = useCallback((data: any) => {
-        const transferId = data.transferId;
-        const fileName = data.fileName;
-        const fileSize = data.fileSize;
-
-        console.log('Starting file transfer:', { transferId, fileName, fileSize });
-
-        // Initialize receiving file
-        receivingFilesRef.current.set(transferId, {
-            chunks: [],
-            receivedSize: 0,
-            totalSize: fileSize,
-            fileName: fileName
-        });
-
-        // Add to file transfers list
-        const fileTransfer: FileTransfer = {
-            id: transferId,
-            fileName,
-            fileSize,
-            progress: 0,
-            status: 'receiving'
-        };
-
-        setFileTransfers(prev => [...prev, fileTransfer]);
-    }, []);
-
-    const handleFileChunkInfo = useCallback((data: any) => {
-        const transferId = data.transferId;
-        const chunkIndex = data.chunkIndex;
-        const totalChunks = data.totalChunks;
-
-        // console.log('File chunk info:', { transferId, chunkIndex, totalChunks });
-
-        // Update progress
-        setFileTransfers(prev => prev.map(transfer => {
-            if (transfer.id === transferId) {
-                return {
-                    ...transfer,
-                    progress: (chunkIndex / totalChunks) * 100
-                };
-            }
-            return transfer;
-        }));
-    }, []);
-
-    const handleFileChunk = useCallback((chunk: ArrayBuffer) => {
-        // Find the current receiving file
-        const entries = Array.from(receivingFilesRef.current.entries());
-        for (const [transferId, fileInfo] of entries) {
-            fileInfo.chunks.push(chunk);
-            fileInfo.receivedSize += chunk.byteLength;
-
-            // Update progress
-            setFileTransfers(prev => prev.map(transfer => {
-                if (transfer.id === transferId) {
-                    return {
-                        ...transfer,
-                        progress: (fileInfo.receivedSize / fileInfo.totalSize) * 100
-                    };
-                }
-                return transfer;
+    const flushProgressUpdates = useCallback((immediate = false) => {
+        const run = () => {
+            progressFlushRef.current = null;
+            if (progressPatchesRef.current.size === 0) return;
+            const patches = new Map(progressPatchesRef.current);
+            progressPatchesRef.current.clear();
+            setFileTransfers((prev) => prev.map((transfer) => {
+                const patch = patches.get(transfer.id);
+                return patch ? { ...transfer, ...patch } : transfer;
             }));
+        };
 
-            break; // Only handle one file at a time
-        }
-    }, []);
-
-    const handleFileTransferEnd = useCallback((data: any) => {
-        const transferId = data.transferId;
-        const fileInfo = receivingFilesRef.current.get(transferId);
-
-        if (fileInfo) {
-            console.log('File transfer completed:', fileInfo.fileName);
-
-            // Combine all chunks
-            const totalSize = fileInfo.chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
-            const combinedBuffer = new ArrayBuffer(totalSize);
-            const uint8Array = new Uint8Array(combinedBuffer);
-
-            let offset = 0;
-            for (const chunk of fileInfo.chunks) {
-                uint8Array.set(new Uint8Array(chunk), offset);
-                offset += chunk.byteLength;
+        if (immediate) {
+            if (progressFlushRef.current) {
+                clearTimeout(progressFlushRef.current);
+                progressFlushRef.current = null;
             }
-
-            // Update file transfer status
-            setFileTransfers(prev => prev.map(transfer => {
-                if (transfer.id === transferId) {
-                    return {
-                        ...transfer,
-                        status: 'completed',
-                        progress: 100,
-                        data: combinedBuffer
-                    };
-                }
-                return transfer;
-            }));
-
-            // Add message
-            const message: ChatMessage = {
-                id: Date.now().toString(),
-                text: `收到文件: ${fileInfo.fileName}`,
-                sender: 'peer',
-                timestamp: new Date(),
-                type: 'file',
-                fileName: fileInfo.fileName,
-                fileSize: fileInfo.totalSize,
-            };
-            setMessages(prev => [...prev, message]);
-
-            // Clean up
-            receivingFilesRef.current.delete(transferId);
-        }
-    }, []);
-
-    const setupDataChannel = useCallback((channel: RTCDataChannel) => {
-        console.log('Setting up data channel:', channel.label, 'state:', channel.readyState);
-
-        channel.onopen = () => {
-            console.log('Data channel opened:', channel.label);
-            setIsConnected(true);
-            // 设置当前连接的对方ID
-            if (currentTargetRef.current) {
-                setConnectedPeerId(currentTargetRef.current);
-            }
-        };
-
-        channel.onclose = () => {
-            console.log('Data channel closed:', channel.label);
-            setIsConnected(false);
-            // 清除当前连接的对方ID
-            setConnectedPeerId(null);
-        };
-
-        channel.onmessage = (event) => {
-            try {
-                // Check if it's a binary message (file chunk)
-                if (event.data instanceof ArrayBuffer) {
-                    handleFileChunk(event.data);
-                    return;
-                }
-
-                // Handle text messages
-                const data = JSON.parse(event.data);
-
-                if (data.type === 'text') {
-                    const message: ChatMessage = {
-                        id: Date.now().toString(),
-                        text: data.text,
-                        sender: 'peer',
-                        timestamp: new Date(),
-                        type: 'text',
-                    };
-                    setMessages(prev => [...prev, message]);
-                } else if (data.type === 'file-start') {
-                    // Handle file transfer start
-                    handleFileTransferStart(data);
-                } else if (data.type === 'file-chunk') {
-                    // Handle file chunk info (not the actual chunk)
-                    handleFileChunkInfo(data);
-                } else if (data.type === 'file-end') {
-                    // Handle file transfer end
-                    handleFileTransferEnd(data);
-                }
-            } catch (error) {
-                console.error('Error parsing data channel message:', error);
-            }
-        };
-
-        dataChannelRef.current = channel;
-    }, [handleFileChunk, handleFileTransferStart, handleFileChunkInfo, handleFileTransferEnd]);
-
-    const createPeerConnection = useCallback(() => {
-        // Create WebRTC configuration
-        const rtcConfig: RTCConfiguration = {
-            iceServers: [
-                // === 公共STUN服务器（优先级高，免费可靠）===
-                // Cloudflare STUN 服务器
-                { urls: 'stun:stun.cloudflare.com:3478' },
-
-                // Google STUN 服务器（最可靠）
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' },
-
-
-
-                // VoIP 服务 STUN 服务器
-                { urls: 'stun:stun.voipbuster.com:3478' },
-                { urls: 'stun:stun.voipstunt.com:3478' },
-
-                // === TURN 服务器（备用，可能不可用）===
-                // 注意：如果TURN服务器不可用，会尝试使用STUN进行直连
-                {
-                    urls: ["turn:turn.bqrdh.com:3478"],
-                    username: "chenzw",
-                    credential: "otary@1990"
-                },
-                {
-                    urls: ["turn:43.138.235.180:9002"],
-                    username: "dfs",
-                    credential: "mypwd"
-                },
-            ],
-            iceCandidatePoolSize: 15, // 增加ICE候选池大小
-            bundlePolicy: 'max-bundle', // 改为max-bundle以提高连接成功率
-            rtcpMuxPolicy: 'require',
-            // 允许所有类型的ICE候选（host, srflx, relay）
-            iceTransportPolicy: 'all',
-        };
-
-        const pc = new RTCPeerConnection(rtcConfig);
-
-        pc.onicecandidate = (event) => {
-            if (event.candidate && currentTargetRef.current) {
-                // Log ICE candidate for debugging NAT traversal
-                console.log('ICE Candidate generated:', {
-                    type: event.candidate.type,
-                    address: event.candidate.address,
-                    port: event.candidate.port,
-                    protocol: event.candidate.protocol,
-                    candidate: event.candidate.candidate,
-                    target: currentTargetRef.current
-                });
-
-                sendSignalingMessage({
-                    type: 'ice-candidate',
-                    to: currentTargetRef.current,
-                    data: event.candidate,
-                });
-            } else if (!event.candidate) {
-                console.log('ICE gathering completed');
-            }
-        };
-
-        pc.onicecandidateerror = (event) => {
-            console.error('ICE candidate error:', event);
-        };
-
-        pc.oniceconnectionstatechange = () => {
-            console.log('ICE connection state:', pc.iceConnectionState);
-
-            // Additional debugging for connection failures
-            if (pc.iceConnectionState === 'failed') {
-                console.warn('ICE connection failed - this often indicates NAT/firewall issues');
-                console.log('Attempting ICE restart...');
-                pc.restartIce();
-            }
-        };
-
-        pc.onicegatheringstatechange = () => {
-            console.log('ICE gathering state:', pc.iceGatheringState);
-        };
-
-        pc.onconnectionstatechange = () => {
-            console.log('Connection state:', pc.connectionState);
-            console.log('Current target:', currentTargetRef.current);
-            setIsConnected(pc.connectionState === 'connected');
-        };
-
-        pc.ondatachannel = (event) => {
-            console.log('Data channel received:', event.channel.label);
-            const channel = event.channel;
-            setupDataChannel(channel);
-        };
-
-        return pc;
-    }, [sendSignalingMessage, setupDataChannel]);
-
-    const connect = useCallback(async (targetId: string) => {
-        console.log('Connecting to target:', targetId);
-        if (!targetId || targetId.trim() === '') {
-            console.error('Target ID is empty');
+            run();
             return;
         }
 
-        // Store the target ID for ICE candidates
-        currentTargetRef.current = targetId;
-
-        if (pcRef.current) {
-            pcRef.current.close();
-        }
-
-        const pc = createPeerConnection();
-        pcRef.current = pc;
-
-        // Create data channel
-        const dataChannel = pc.createDataChannel('messages', {
-            ordered: true,
-        });
-        setupDataChannel(dataChannel);
-
-        try {
-            // Create offer
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            // Send offer through signaling server
-            console.log('Sending offer to:', targetId);
-            sendSignalingMessage({
-                type: 'offer',
-                to: targetId,
-                data: offer,
-            });
-        } catch (error) {
-            console.error('Error creating offer:', error);
-        }
-    }, [createPeerConnection, setupDataChannel, sendSignalingMessage]);
-
-    const sendMessage = useCallback((text: string) => {
-        if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
-            const messageData = {
-                type: 'text',
-                text,
-                timestamp: new Date().toISOString(),
-            };
-
-            dataChannelRef.current.send(JSON.stringify(messageData));
-
-            // Add to local messages
-            const message: ChatMessage = {
-                id: Date.now().toString(),
-                text,
-                sender: 'me',
-                timestamp: new Date(),
-                type: 'text',
-                fileName: undefined,
-                fileSize: undefined,
-            };
-            setMessages(prev => [...prev, message]);
-        }
+        if (progressFlushRef.current) return;
+        progressFlushRef.current = setTimeout(run, PROGRESS_THROTTLE_MS);
     }, []);
 
-    const sendFile = useCallback((file: File) => {
-        if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
-            const transferId = Date.now().toString();
-            const chunkSize = 16384; // 16KB chunks
-            const totalChunks = Math.ceil(file.size / chunkSize);
+    const queueProgressUpdate = useCallback((transferId: string, patch: Partial<FileTransfer>, immediate = false) => {
+        const existing = progressPatchesRef.current.get(transferId) ?? {};
+        progressPatchesRef.current.set(transferId, { ...existing, ...patch, id: transferId });
+        flushProgressUpdates(immediate);
+    }, [flushProgressUpdates]);
 
-            console.log('Starting file transfer:', {
-                fileName: file.name,
-                fileSize: file.size,
-                transferId,
-                totalChunks
-            });
+    const notify = useCallback((message: string, type: NotifyType = 'info') => {
+        onNotify?.(message, type);
+    }, [onNotify]);
 
-            // Add to file transfers list
-            const fileTransfer: FileTransfer = {
-                id: transferId,
-                fileName: file.name,
-                fileSize: file.size,
-                progress: 0,
-                status: 'sending'
-            };
-
-            setFileTransfers(prev => [...prev, fileTransfer]);
-            fileTransferRef.current.set(transferId, fileTransfer);
-
-            // Send file start message
-            const startMessage = {
-                type: 'file-start',
-                transferId,
-                fileName: file.name,
-                fileSize: file.size,
-                totalChunks
-            };
-
-            dataChannelRef.current.send(JSON.stringify(startMessage));
-
-            // Read and send file in chunks
-            const reader = new FileReader();
-            let chunkIndex = 0;
-
-            reader.onload = (e) => {
-                if (e.target?.result instanceof ArrayBuffer) {
-                    // Send chunk info
-                    const chunkInfo = {
-                        type: 'file-chunk',
-                        transferId,
-                        chunkIndex,
-                        totalChunks
-                    };
-                    dataChannelRef.current?.send(JSON.stringify(chunkInfo));
-
-                    // Send actual chunk data
-                    dataChannelRef.current?.send(e.target.result);
-
-                    chunkIndex++;
-
-                    // Update progress
-                    setFileTransfers(prev => prev.map(transfer => {
-                        if (transfer.id === transferId) {
-                            return {
-                                ...transfer,
-                                progress: (chunkIndex / totalChunks) * 100
-                            };
-                        }
-                        return transfer;
-                    }));
-
-                    // Continue reading if more chunks
-                    if (chunkIndex < totalChunks) {
-                        const start = chunkIndex * chunkSize;
-                        const end = Math.min(start + chunkSize, file.size);
-                        const chunk = file.slice(start, end);
-                        reader.readAsArrayBuffer(chunk);
-                    } else {
-                        // Send file end message
-                        const endMessage = {
-                            type: 'file-end',
-                            transferId
-                        };
-                        dataChannelRef.current?.send(JSON.stringify(endMessage));
-
-                        // Update status to completed
-                        setFileTransfers(prev => prev.map(transfer => {
-                            if (transfer.id === transferId) {
-                                return {
-                                    ...transfer,
-                                    status: 'completed',
-                                    progress: 100
-                                };
-                            }
-                            return transfer;
-                        }));
-
-                        // Add message
-                        const message: ChatMessage = {
-                            id: Date.now().toString(),
-                            text: `发送文件: ${file.name}`,
-                            sender: 'me',
-                            timestamp: new Date(),
-                            type: 'file',
-                            fileName: file.name,
-                            fileSize: file.size,
-                        };
-                        setMessages(prev => [...prev, message]);
-
-                        // Clean up
-                        fileTransferRef.current.delete(transferId);
-                    }
-                }
-            };
-
-            // Start reading first chunk
-            const firstChunk = file.slice(0, chunkSize);
-            reader.readAsArrayBuffer(firstChunk);
-        }
+    const resetConnectionState = useCallback(() => {
+        currentTargetRef.current = null;
+        makingOfferRef.current = false;
+        pendingChunkTransferIdRef.current = null;
+        pendingICECandidatesRef.current = [];
+        pendingOfferRef.current = null;
+        setIsConnected(false);
+        setConnectedPeerId(null);
+        setShowOfferConfirm(false);
+        setOfferFrom(null);
     }, []);
 
-    const disconnect = useCallback(() => {
-        console.log('Disconnecting WebRTC connection');
-
-        // 显式发送断开消息
-        if (currentTargetRef.current && sendSignalingMessage) {
-            sendSignalingMessage({
-                type: 'disconnect',
-                to: currentTargetRef.current,
-                data: {}
-            });
-        }
-
+    const cleanupPeerConnection = useCallback(() => {
         if (dataChannelRef.current) {
             dataChannelRef.current.close();
             dataChannelRef.current = null;
@@ -538,62 +188,419 @@ export const useWebRTC = (
             pcRef.current.close();
             pcRef.current = null;
         }
+    }, []);
 
-        currentTargetRef.current = null;
-        setIsConnected(false);
-        setConnectedPeerId(null);
+    const handleFileTransferStart = useCallback((data: FileTransferStartPayload) => {
+        receivingFilesRef.current.set(data.transferId, {
+            chunks: [],
+            receivedSize: 0,
+            totalSize: data.fileSize,
+            fileName: data.fileName,
+        });
 
-        // 清理pending状态
-        pendingICECandidatesRef.current = [];
-        pendingOfferRef.current = null;
-        setShowOfferConfirm(false);
-        setOfferFrom(null);
-    }, [sendSignalingMessage]);
+        setFileTransfers((prev) => [
+            ...prev,
+            {
+                id: data.transferId,
+                fileName: data.fileName,
+                fileSize: data.fileSize,
+                progress: 0,
+                status: 'receiving',
+            },
+        ]);
+    }, []);
 
-    // 确认offer的处理函数
+    const handleFileChunkInfo = useCallback((data: FileChunkInfoPayload) => {
+        pendingChunkTransferIdRef.current = data.transferId;
+        queueProgressUpdate(data.transferId, {
+            progress: ((data.chunkIndex + 1) / data.totalChunks) * 100,
+        });
+    }, [queueProgressUpdate]);
+
+    const handleFileChunk = useCallback((chunk: ArrayBuffer) => {
+        const transferId = pendingChunkTransferIdRef.current;
+        pendingChunkTransferIdRef.current = null;
+        if (!transferId) return;
+
+        const fileInfo = receivingFilesRef.current.get(transferId);
+        if (!fileInfo) return;
+
+        fileInfo.chunks.push(chunk);
+        fileInfo.receivedSize += chunk.byteLength;
+
+        queueProgressUpdate(transferId, {
+            progress: (fileInfo.receivedSize / fileInfo.totalSize) * 100,
+        });
+    }, [queueProgressUpdate]);
+
+    const handleFileTransferEnd = useCallback((data: FileTransferEndPayload) => {
+        const fileInfo = receivingFilesRef.current.get(data.transferId);
+        if (!fileInfo) return;
+
+        const totalSize = fileInfo.chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+        const combinedBuffer = new ArrayBuffer(totalSize);
+        const uint8Array = new Uint8Array(combinedBuffer);
+
+        let offset = 0;
+        for (const chunk of fileInfo.chunks) {
+            uint8Array.set(new Uint8Array(chunk), offset);
+            offset += chunk.byteLength;
+        }
+
+        setFileTransfers((prev) => prev.map((transfer) => {
+            if (transfer.id === data.transferId) {
+                return {
+                    ...transfer,
+                    status: 'completed',
+                    progress: 100,
+                    data: combinedBuffer,
+                };
+            }
+            return transfer;
+        }));
+        progressPatchesRef.current.delete(data.transferId);
+        flushProgressUpdates(true);
+
+        setMessages((prev) => [
+            ...prev,
+            {
+                id: Date.now().toString(),
+                text: `收到文件: ${fileInfo.fileName}`,
+                sender: 'peer',
+                timestamp: new Date(),
+                type: 'file',
+                fileName: fileInfo.fileName,
+                fileSize: fileInfo.totalSize,
+            },
+        ]);
+
+        receivingFilesRef.current.delete(data.transferId);
+    }, [flushProgressUpdates]);
+
+    const setupDataChannel = useCallback((channel: RTCDataChannel) => {
+        channel.onopen = () => {
+            setIsConnected(true);
+            if (currentTargetRef.current) {
+                setConnectedPeerId(currentTargetRef.current);
+            }
+        };
+
+        channel.onclose = () => {
+            setIsConnected(false);
+            setConnectedPeerId(null);
+        };
+
+        channel.onmessage = (event) => {
+            try {
+                if (event.data instanceof ArrayBuffer) {
+                    handleFileChunk(event.data);
+                    return;
+                }
+
+                const data = JSON.parse(event.data as string);
+
+                if (data.type === 'text') {
+                    setMessages((prev) => [
+                        ...prev,
+                        {
+                            id: Date.now().toString(),
+                            text: data.text,
+                            sender: 'peer',
+                            timestamp: new Date(),
+                            type: 'text',
+                        },
+                    ]);
+                } else if (data.type === 'file-start') {
+                    handleFileTransferStart(data);
+                } else if (data.type === 'file-chunk') {
+                    handleFileChunkInfo(data);
+                } else if (data.type === 'file-end') {
+                    handleFileTransferEnd(data);
+                }
+            } catch (error) {
+                console.error('Error parsing data channel message:', error);
+            }
+        };
+
+        dataChannelRef.current = channel;
+    }, [handleFileChunk, handleFileTransferEnd, handleFileTransferStart, handleFileChunkInfo]);
+
+    const createPeerConnection = useCallback(() => {
+        const rtcConfig: RTCConfiguration = {
+            iceServers: [
+                { urls: 'stun:stun.cloudflare.com:3478' },
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+                { urls: 'stun:stun.voipbuster.com:3478' },
+                { urls: 'stun:stun.voipstunt.com:3478' },
+                {
+                    urls: ['turn:turn.bqrdh.com:3478'],
+                    username: 'chenzw',
+                    credential: 'otary@1990',
+                },
+                {
+                    urls: ['turn:43.138.235.180:9002'],
+                    username: 'dfs',
+                    credential: 'mypwd',
+                },
+            ],
+            iceCandidatePoolSize: 15,
+            bundlePolicy: 'max-bundle',
+            rtcpMuxPolicy: 'require',
+            iceTransportPolicy: 'all',
+        };
+
+        const pc = new RTCPeerConnection(rtcConfig);
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate && currentTargetRef.current) {
+                sendSignalingMessage({
+                    type: 'ice-candidate',
+                    to: currentTargetRef.current,
+                    data: event.candidate.toJSON(),
+                });
+            }
+        };
+
+        pc.onicecandidateerror = (event) => {
+            console.error('ICE candidate error:', event);
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            if (pc.iceConnectionState === 'failed') {
+                console.warn('ICE connection failed');
+                notify(signalingLabels.p2pFailed, 'error');
+            }
+        };
+
+        pc.ondatachannel = (event) => {
+            setupDataChannel(event.channel);
+        };
+
+        return pc;
+    }, [notify, sendSignalingMessage, setupDataChannel, signalingLabels]);
+
+    const addIceCandidate = useCallback(async (candidateInit: RTCIceCandidateInit) => {
+        const pc = pcRef.current;
+        if (!pc) {
+            pendingICECandidatesRef.current.push(new RTCIceCandidate(candidateInit));
+            return;
+        }
+
+        if (pc.remoteDescription) {
+            try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidateInit));
+            } catch (error) {
+                console.error('Failed to add ICE candidate:', error);
+            }
+            return;
+        }
+
+        pendingICECandidatesRef.current.push(new RTCIceCandidate(candidateInit));
+    }, []);
+
+    const flushPendingIceCandidates = useCallback(async () => {
+        const pc = pcRef.current;
+        if (!pc) return;
+
+        const pending = pendingICECandidatesRef.current.splice(0);
+        for (const candidate of pending) {
+            try {
+                await pc.addIceCandidate(candidate);
+            } catch (error) {
+                console.error('Failed to add pending ICE candidate:', error);
+            }
+        }
+    }, []);
+
+    const connect = useCallback(async (targetId: string) => {
+        const normalizedTarget = targetId.trim().toUpperCase();
+        if (!normalizedTarget) return;
+
+        currentTargetRef.current = normalizedTarget;
+        cleanupPeerConnection();
+
+        const pc = createPeerConnection();
+        pcRef.current = pc;
+
+        const dataChannel = pc.createDataChannel('messages', { ordered: true });
+        setupDataChannel(dataChannel);
+
+        makingOfferRef.current = true;
+        try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            sendSignalingMessage({
+                type: 'offer',
+                to: normalizedTarget,
+                data: offer,
+            });
+        } catch (error) {
+            console.error('Error creating offer:', error);
+            notify(signalingLabels.startFailed, 'error');
+        } finally {
+            makingOfferRef.current = false;
+        }
+    }, [cleanupPeerConnection, createPeerConnection, notify, sendSignalingMessage, setupDataChannel, signalingLabels]);
+
+    const sendMessage = useCallback((text: string) => {
+        const channel = dataChannelRef.current;
+        if (!channel || channel.readyState !== 'open') {
+            notify(signalingLabels.notReady, 'error');
+            return;
+        }
+
+        channel.send(JSON.stringify({
+            type: 'text',
+            text,
+            timestamp: new Date().toISOString(),
+        }));
+
+        setMessages((prev) => [
+            ...prev,
+            {
+                id: Date.now().toString(),
+                text,
+                sender: 'me',
+                timestamp: new Date(),
+                type: 'text',
+            },
+        ]);
+    }, [notify, signalingLabels]);
+
+    const sendFile = useCallback(async (file: File) => {
+        const channel = dataChannelRef.current;
+        if (!channel || channel.readyState !== 'open') {
+            notify(signalingLabels.notReady, 'error');
+            return;
+        }
+
+        const transferId = Date.now().toString();
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+        setFileTransfers((prev) => [
+            ...prev,
+            {
+                id: transferId,
+                fileName: file.name,
+                fileSize: file.size,
+                progress: 0,
+                status: 'sending',
+            },
+        ]);
+        fileTransferRef.current.set(transferId, {
+            id: transferId,
+            fileName: file.name,
+            fileSize: file.size,
+            progress: 0,
+            status: 'sending',
+        });
+
+        const canContinue = await waitForBuffer(channel);
+        if (!canContinue) {
+            notify(signalingLabels.transferLost, 'error');
+            return;
+        }
+
+        channel.send(JSON.stringify({
+            type: 'file-start',
+            transferId,
+            fileName: file.name,
+            fileSize: file.size,
+            totalChunks,
+        }));
+
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            const start = chunkIndex * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, file.size);
+            const chunk = file.slice(start, end);
+            const buffer = await chunk.arrayBuffer();
+
+            const ready = await waitForBuffer(channel);
+            if (!ready) {
+                notify(signalingLabels.transferLost, 'error');
+                setFileTransfers((prev) => prev.map((transfer) => (
+                    transfer.id === transferId ? { ...transfer, status: 'failed' } : transfer
+                )));
+                return;
+            }
+
+            channel.send(JSON.stringify({
+                type: 'file-chunk',
+                transferId,
+                chunkIndex,
+                totalChunks,
+            }));
+            channel.send(buffer);
+
+            queueProgressUpdate(transferId, {
+                progress: ((chunkIndex + 1) / totalChunks) * 100,
+            });
+        }
+
+        const ready = await waitForBuffer(channel);
+        if (!ready) {
+            notify(signalingLabels.transferLost, 'error');
+            return;
+        }
+
+        channel.send(JSON.stringify({ type: 'file-end', transferId }));
+
+        queueProgressUpdate(transferId, { status: 'completed', progress: 100 }, true);
+
+        setMessages((prev) => [
+            ...prev,
+            {
+                id: Date.now().toString(),
+                text: `发送文件: ${file.name}`,
+                sender: 'me',
+                timestamp: new Date(),
+                type: 'file',
+                fileName: file.name,
+                fileSize: file.size,
+            },
+        ]);
+
+        fileTransferRef.current.delete(transferId);
+    }, [notify, queueProgressUpdate, signalingLabels]);
+
+    const disconnect = useCallback(() => {
+        if (currentTargetRef.current) {
+            sendSignalingMessage({
+                type: 'disconnect',
+                to: currentTargetRef.current,
+                data: {},
+            });
+        }
+
+        cleanupPeerConnection();
+        resetConnectionState();
+    }, [cleanupPeerConnection, resetConnectionState, sendSignalingMessage]);
+
     const confirmOffer = useCallback(async () => {
         if (!pendingOfferRef.current) return;
 
         const { from, data } = pendingOfferRef.current;
-        console.log('User confirmed offer from:', from);
-
-        // 清除确认框状态
         setShowOfferConfirm(false);
         setOfferFrom(null);
         pendingOfferRef.current = null;
 
-        // 处理offer
         try {
-            // Store the sender as our target for ICE candidates
             currentTargetRef.current = from;
+            cleanupPeerConnection();
 
-            // 创建新的peer connection来处理这个offer
-            if (pcRef.current) {
-                pcRef.current.close();
-            }
-            pcRef.current = createPeerConnection();
-            const pc = pcRef.current;
+            const pc = createPeerConnection();
+            pcRef.current = pc;
 
-            console.log('Setting remote description from offer...');
             await pc.setRemoteDescription(new RTCSessionDescription(data));
+            await flushPendingIceCandidates();
 
-            // Process pending ICE candidates
-            console.log('Processing pending ICE candidates, count:', pendingICECandidatesRef.current.length);
-            for (const candidate of pendingICECandidatesRef.current) {
-                try {
-                    await pc.addIceCandidate(candidate);
-                    console.log('Pending ICE candidate added successfully');
-                } catch (error) {
-                    console.error('Failed to add pending ICE candidate:', error);
-                }
-            }
-            pendingICECandidatesRef.current = [];
-
-            console.log('Creating answer...');
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
 
-            console.log('Sending answer to:', from);
             sendSignalingMessage({
                 type: 'answer',
                 to: from,
@@ -601,156 +608,153 @@ export const useWebRTC = (
             });
         } catch (error) {
             console.error('Error handling confirmed offer:', error);
+            notify(signalingLabels.acceptFailed, 'error');
+            resetConnectionState();
         }
-    }, [createPeerConnection, sendSignalingMessage]);
+    }, [cleanupPeerConnection, createPeerConnection, flushPendingIceCandidates, notify, resetConnectionState, sendSignalingMessage, signalingLabels]);
 
-    // 拒绝offer的处理函数
     const rejectOffer = useCallback(() => {
         if (!pendingOfferRef.current) return;
 
         const { from } = pendingOfferRef.current;
-        console.log('User rejected offer from:', from);
-
-        // 清除确认框状态
         setShowOfferConfirm(false);
         setOfferFrom(null);
         pendingOfferRef.current = null;
-        // 清除 pending candidates
         pendingICECandidatesRef.current = [];
 
-        // 发送拒绝消息
         sendSignalingMessage({
             type: 'offer-rejected',
             to: from,
-            data: { reason: 'User rejected the connection offer' }
+            data: { reason: 'User rejected the connection offer' },
         });
     }, [sendSignalingMessage]);
 
-    // Handle signaling messages
-    useEffect(() => {
-        if (!lastSignalingMessage) return;
+    const handleRemoteDisconnect = useCallback(() => {
+        cleanupPeerConnection();
+        resetConnectionState();
+        notify(signalingLabels.peerDisconnected, 'info');
+    }, [cleanupPeerConnection, notify, resetConnectionState, signalingLabels]);
 
-        const message = lastSignalingMessage;
+    const handleOfferRejected = useCallback(() => {
+        cleanupPeerConnection();
+        resetConnectionState();
+        notify(signalingLabels.rejected, 'error');
+    }, [cleanupPeerConnection, notify, resetConnectionState, signalingLabels]);
 
-        const handleSignalingMessage = async () => {
-            try {
-                switch (message.type) {
-                    case 'disconnect':
-                        console.log('Received disconnect signal from:', message.from);
-                        // 对方主动断开，清理本地连接
-                        if (pcRef.current) {
-                            pcRef.current.close();
-                            pcRef.current = null;
-                        }
-                        if (dataChannelRef.current) {
-                            dataChannelRef.current.close();
-                            dataChannelRef.current = null;
-                        }
-                        currentTargetRef.current = null;
-                        setIsConnected(false);
-                        setConnectedPeerId(null);
-                        pendingICECandidatesRef.current = [];
-                        break;
+    const handleIncomingOffer = useCallback(async (message: Message) => {
+        const from = message.from;
+        if (!from) return;
 
-                    case 'offer':
-                        console.log('Received offer from:', message.from);
+        const remoteDescription = asSessionDescription(message.data);
+        const offerCollision = Boolean(
+            pcRef.current &&
+            (makingOfferRef.current || pcRef.current.signalingState !== 'stable')
+        );
 
-                        // 如果有正在进行的连接，先清理
-                        if (pcRef.current) {
-                            console.log('Closing existing connection for new offer');
-                            pcRef.current.close();
-                            pcRef.current = null;
-                            setIsConnected(false);
-                            setConnectedPeerId(null);
-                        }
-                        pendingICECandidatesRef.current = [];
+        if (offerCollision && localUid && !isPolitePeer(localUid, from)) {
+            console.log('Glare detected: impolite side ignoring offer from', from);
+            return;
+        }
 
-                        // 显示确认框而不是直接处理offer
-                        setShowOfferConfirm(true);
-                        setOfferFrom(message.from!);
-                        pendingOfferRef.current = {
-                            from: message.from!,
-                            data: message.data
-                        };
-                        break;
+        if (offerCollision && localUid && isPolitePeer(localUid, from)) {
+            console.log('Glare detected: polite side rolling back for offer from', from);
+            cleanupPeerConnection();
+            makingOfferRef.current = false;
+        } else if (pcRef.current) {
+            cleanupPeerConnection();
+            setIsConnected(false);
+            setConnectedPeerId(null);
+        }
 
-                    case 'answer':
-                        console.log('Received answer from:', message.from);
-                        if (!pcRef.current) {
-                            console.error('No peer connection available for answer');
-                            return;
-                        }
+        pendingICECandidatesRef.current = [];
+        setShowOfferConfirm(true);
+        setOfferFrom(from);
+        pendingOfferRef.current = { from, data: remoteDescription };
+    }, [cleanupPeerConnection, localUid]);
 
-                        console.log('Setting remote description from answer...');
-                        await pcRef.current.setRemoteDescription(new RTCSessionDescription(message.data));
+    const processSignalingMessage = useCallback(async (message: Message) => {
+        try {
+            switch (message.type) {
+                case 'disconnect':
+                    handleRemoteDisconnect();
+                    break;
 
-                        // Process pending ICE candidates
-                        console.log('Processing pending ICE candidates in answer, count:', pendingICECandidatesRef.current.length);
-                        for (const candidate of pendingICECandidatesRef.current) {
-                            try {
-                                await pcRef.current.addIceCandidate(candidate);
-                                console.log('Pending ICE candidate added successfully in answer');
-                            } catch (error) {
-                                console.error('Failed to add pending ICE candidate in answer:', error);
-                            }
-                        }
-                        pendingICECandidatesRef.current = [];
-                        break;
+                case 'offer-rejected':
+                    handleOfferRejected();
+                    break;
 
-                    case 'ice-candidate':
-                        console.log('Received ICE candidate from:', message.from, 'candidate:', message.data);
-
-                        // 如果正在等待确认Offer，将candidate存入pending队列
-                        if (pendingOfferRef.current && pendingOfferRef.current.from === message.from) {
-                            console.log('Caching ICE candidate for pending offer');
-                            pendingICECandidatesRef.current.push(new RTCIceCandidate(message.data));
-                            return;
-                        }
-
-                        if (!pcRef.current) {
-                            console.log('No peer connection available for ICE candidate, storing for later');
-                            // Store ICE candidate for later when peer connection is created
-                            pendingICECandidatesRef.current.push(new RTCIceCandidate(message.data));
-                            return;
-                        }
-
-                        if (pcRef.current.remoteDescription) {
-                            console.log('Adding ICE candidate immediately');
-                            try {
-                                await pcRef.current.addIceCandidate(new RTCIceCandidate(message.data));
-                                console.log('ICE candidate added successfully');
-                            } catch (error) {
-                                console.error('Failed to add ICE candidate:', error);
-                            }
-                        } else {
-                            console.log('Storing ICE candidate for later, pending count:', pendingICECandidatesRef.current.length);
-                            // Store ICE candidate for later
-                            pendingICECandidatesRef.current.push(new RTCIceCandidate(message.data));
-                        }
-                        break;
+                case 'error': {
+                    const serverError = message.error || '';
+                    if (serverError.toLowerCase().includes('not found')) {
+                        notify(signalingLabels.targetNotFound, 'error');
+                    } else {
+                        notify(serverError || signalingLabels.error, 'error');
+                    }
+                    break;
                 }
-            } catch (error) {
-                console.error('Error handling signaling message:', error);
-                console.error('Message type:', message.type);
-                console.error('Message data:', message.data);
+
+                case 'offer':
+                    await handleIncomingOffer(message);
+                    break;
+
+                case 'answer': {
+                    const pc = pcRef.current;
+                    if (!pc) {
+                        console.error('No peer connection available for answer');
+                        return;
+                    }
+
+                    await pc.setRemoteDescription(new RTCSessionDescription(asSessionDescription(message.data)));
+                    await flushPendingIceCandidates();
+                    break;
+                }
+
+                case 'ice-candidate': {
+                    if (pendingOfferRef.current && pendingOfferRef.current.from === message.from) {
+                        pendingICECandidatesRef.current.push(
+                            new RTCIceCandidate(asIceCandidateInit(message.data))
+                        );
+                        return;
+                    }
+
+                    await addIceCandidate(asIceCandidateInit(message.data));
+                    break;
+                }
+
+                default:
+                    break;
             }
-        };
+        } catch (error) {
+            console.error('Error handling signaling message:', error);
+            console.error('Message type:', message.type);
+            console.error('Message data:', message.data);
+        }
+    }, [
+        addIceCandidate,
+        flushPendingIceCandidates,
+        handleIncomingOffer,
+        handleOfferRejected,
+        handleRemoteDisconnect,
+        notify,
+        signalingLabels,
+    ]);
 
-        handleSignalingMessage();
-    }, [lastSignalingMessage, createPeerConnection, sendSignalingMessage]);
+    useEffect(() => {
+        const messages = drainSignalingMessages();
+        if (messages.length === 0) return;
 
-    // 注意：不要在 useEffect cleanup 中调用 disconnect，因为会导致刷新页面时发送断开消息
-    // 或者状态更新导致的不必要的断开
-    // 这里我们只在组件卸载时不做特殊处理，因为页面卸载会导致 WebSocket 断开，
-    // 但如果为了优雅退出，可以保留。
+        void (async () => {
+            for (const message of messages) {
+                await processSignalingMessage(message);
+            }
+        })();
+    }, [signalingRevision, drainSignalingMessages, processSignalingMessage]);
+
     useEffect(() => {
         return () => {
-            // 组件卸载时的清理，通常不需要发送网络请求，因为 socket 可能已经断了
-            if (pcRef.current) {
-                pcRef.current.close();
-            }
+            cleanupPeerConnection();
         };
-    }, []);
+    }, [cleanupPeerConnection]);
 
     return {
         isConnected,
@@ -758,7 +762,9 @@ export const useWebRTC = (
         fileTransfers,
         connect,
         sendMessage,
-        sendFile,
+        sendFile: (file: File) => {
+            void sendFile(file);
+        },
         disconnect,
         showOfferConfirm,
         offerFrom,

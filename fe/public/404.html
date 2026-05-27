@@ -4,138 +4,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>页面未找到 - WebDrop</title>
-    
-    <!-- Prevent 404 page from being indexed -->
+    <title>Page Not Found - WebDrop</title>
     <meta name="robots" content="noindex, nofollow" />
-    
-    <!-- Force HTTPS -->
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 40px 20px;
-            text-align: center;
-            color: #333;
-        }
-
-        .error-container {
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 40px;
-            margin: 40px 0;
-            border: 1px solid #e9ecef;
-        }
-
-        .error-code {
-            font-size: 6rem;
-            font-weight: bold;
-            color: #3B82F6;
-            margin: 0;
-            line-height: 1;
-        }
-
-        .error-title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #374151;
-            margin: 20px 0 10px 0;
-        }
-
-        .error-description {
-            color: #6b7280;
-            margin-bottom: 30px;
-        }
-
-        .back-button {
-            display: inline-block;
-            background: #3B82F6;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 500;
-            transition: background-color 0.2s;
-        }
-
-        .back-button:hover {
-            background: #2563eb;
-        }
-
-        .language-switch {
-            text-align: right;
-            margin-bottom: 20px;
-        }
-
-        .language-switch button {
-            background: #3B82F6;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-left: 10px;
-        }
-
-        .content {
-            display: none;
-        }
-
-        .content.active {
-            display: block;
-        }
-    </style>
+    <link rel="stylesheet" href="/css/site-static.css" />
 </head>
 
 <body>
-    <div class="language-switch">
-        <button onclick="showLanguage('en')">English</button>
-        <button onclick="showLanguage('zh')">中文</button>
-    </div>
-
-    <div id="zh-content" class="content">
-        <div class="error-container">
-            <div class="error-code">404</div>
-            <h1 class="error-title">页面未找到</h1>
-            <p class="error-description">
-                抱歉，您访问的页面不存在或已被移动。<br>
-                请检查URL是否正确，或返回首页继续使用WebDrop。
-            </p>
-            <a href="/" class="back-button">返回首页</a>
+    <div class="ambient" aria-hidden="true"></div>
+    <header class="site-header">
+        <div class="site-header-inner">
+            <a href="/" class="brand">
+                <span class="brand-mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg></span>
+                WebDrop
+            </a>
+            <nav class="site-nav" aria-label="Site"><a href="/">Home</a><a href="/blog">Blog</a></nav>
         </div>
+    </header>
 
-        <div style="margin-top: 40px; color: #6b7280; font-size: 0.9rem;">
-            <p>如果您认为这是一个错误，请联系我们：</p>
-            <p>support@webdrop.online</p>
-        </div>
-    </div>
+    <main class="page-wrap">
+        <div class="page-card">
+            <div class="language-switch">
+                <button class="active" onclick="showLanguage('en')">English</button>
+                <button onclick="showLanguage('zh')">中文</button>
+            </div>
 
-    <div id="en-content" class="content active">
-        <div class="error-container">
-            <div class="error-code">404</div>
-            <h1 class="error-title">Page Not Found</h1>
-            <p class="error-description">
-                Sorry, the page you're looking for doesn't exist or has been moved.<br>
-                Please check if the URL is correct, or return to the homepage to continue using WebDrop.
-            </p>
-            <a href="/" class="back-button">Back to Homepage</a>
-        </div>
+            <div id="zh-content" class="content">
+                <div class="error-container">
+                    <div class="error-code">404</div>
+                    <h1>页面未找到</h1>
+                    <p>抱歉，您访问的页面不存在或已被移动。请检查 URL 是否正确，或返回首页继续使用 WebDrop。</p>
+                    <div class="btn-row">
+                        <a href="/" class="btn btn-primary">返回首页</a>
+                        <a href="/blog" class="btn btn-ghost">博客</a>
+                    </div>
+                </div>
+                <p style="text-align:center;font-size:0.875rem;margin-top:24px;">support@webdrop.online</p>
+            </div>
 
-        <div style="margin-top: 40px; color: #6b7280; font-size: 0.9rem;">
-            <p>If you believe this is an error, please contact us:</p>
-            <p>support@webdrop.online</p>
+            <div id="en-content" class="content active">
+                <div class="error-container">
+                    <div class="error-code">404</div>
+                    <h1>Page Not Found</h1>
+                    <p>Sorry, the page you're looking for doesn't exist or has been moved. Check the URL or return to WebDrop.</p>
+                    <div class="btn-row">
+                        <a href="/" class="btn btn-primary">Back to Home</a>
+                        <a href="/blog" class="btn btn-ghost">Blog</a>
+                    </div>
+                </div>
+                <p style="text-align:center;font-size:0.875rem;margin-top:24px;">support@webdrop.online</p>
+            </div>
         </div>
-    </div>
+    </main>
+
+    <footer class="site-footer">
+        <a href="/privacy-policy.html">Privacy</a>
+        <a href="/terms-of-service.html">Terms</a>
+        <a href="/copyright.html">Copyright</a>
+    </footer>
 
     <script>
         function showLanguage(lang) {
-            document.querySelectorAll('.content').forEach(content => {
-                content.classList.remove('active');
-            });
+            document.querySelectorAll('.content').forEach((content) => content.classList.remove('active'));
             document.getElementById(lang + '-content').classList.add('active');
+            document.querySelectorAll('.language-switch button').forEach((btn, i) => {
+                btn.classList.toggle('active', (lang === 'en' && i === 0) || (lang === 'zh' && i === 1));
+            });
         }
     </script>
 </body>

@@ -82,11 +82,61 @@ export interface Translations {
         accept: string;
         reject: string;
     };
+    qrScanner: {
+        title: string;
+        description: string;
+        cameraDenied: string;
+        cameraNotFound: string;
+        cameraFailed: string;
+        browserNotSupported: string;
+        httpsRequiredMobile: string;
+        httpsRequired: string;
+        permissionHintMobile: string;
+        permissionHint: string;
+        clickToStart: string;
+        requestPermission: string;
+        startScan: string;
+        stopScan: string;
+        close: string;
+        deviceNotSupported: string;
+        cameraInUse: string;
+        cameraError: string;
+    };
     footer: {
         allRightsReserved: string;
         privacyPolicy: string;
         termsOfService: string;
         copyright: string;
+    };
+    workspace: {
+        copy: string;
+        trustTitle: string;
+        chatTitle: string;
+        step1: string;
+        step2: string;
+        peerConnected: string;
+        ws: string;
+        rtc: string;
+        chatEmpty: string;
+        navHome: string;
+        navBlog: string;
+        toastCopied: string;
+        sendingImage: string;
+        connectionSuccess: string;
+        connectionFailed: string;
+        connectionDisconnected: string;
+        trust: { title: string; desc: string }[];
+        signaling: {
+            notReady: string;
+            p2pFailed: string;
+            startFailed: string;
+            transferLost: string;
+            acceptFailed: string;
+            peerDisconnected: string;
+            rejected: string;
+            error: string;
+            targetNotFound: string;
+        };
     };
     language: string;
 }
@@ -94,7 +144,7 @@ export interface Translations {
 export const translations: Record<string, Translations> = {
     zh: {
         title: "WebDrop",
-        subtitle: "安全的P2P文件传输与实时聊天",
+        subtitle: "浏览器内 P2P 传文件与聊天，数据不经服务器存储。",
         features: {
             privacy: "🔒 隐私安全",
             privacyDesc: "端到端加密",
@@ -128,7 +178,7 @@ export const translations: Record<string, Translations> = {
         connectToPeer: {
             title: "连接到对方",
             description: "输入对方的UID来建立P2P连接",
-            placeholder: "输入对方的UID (例如: ABC123)",
+            placeholder: "输入 6 位码",
             connect: "连接",
             disconnect: "断开",
             waiting: "等待连接...",
@@ -186,17 +236,71 @@ export const translations: Record<string, Translations> = {
             accept: "接受",
             reject: "拒绝",
         },
+        qrScanner: {
+            title: "扫描二维码",
+            description: "将二维码对准摄像头进行扫描",
+            cameraDenied: "摄像头权限被拒绝，请允许访问摄像头",
+            cameraNotFound: "未找到摄像头设备",
+            cameraFailed: "摄像头访问失败，请检查权限设置",
+            browserNotSupported: "您的浏览器不支持摄像头访问",
+            httpsRequiredMobile: "移动端需要 HTTPS 才能访问摄像头，请使用 HTTPS 链接",
+            httpsRequired: "需要 HTTPS 环境才能访问摄像头",
+            permissionHintMobile: "需要摄像头权限才能开始扫描（移动端请确保使用 HTTPS）",
+            permissionHint: "需要摄像头权限才能开始扫描",
+            clickToStart: "点击开始扫描",
+            requestPermission: "请求权限",
+            startScan: "开始扫描",
+            stopScan: "停止扫描",
+            close: "关闭",
+            deviceNotSupported: "您的设备不支持摄像头访问",
+            cameraInUse: "摄像头被其他应用占用",
+            cameraError: "摄像头访问失败: {message}",
+        },
         footer: {
             allRightsReserved: "保留所有权利",
             privacyPolicy: "隐私政策",
             termsOfService: "服务条款",
             copyright: "版权声明",
         },
+        workspace: {
+            copy: "复制",
+            trustTitle: "为何值得信任",
+            chatTitle: "传输与对话",
+            step1: "Step 1",
+            step2: "Step 2",
+            peerConnected: "已与",
+            ws: "信令",
+            rtc: "P2P",
+            chatEmpty: "连接成功后，消息与文件将在此出现",
+            navHome: "首页",
+            navBlog: "博客",
+            toastCopied: "连接码已复制",
+            sendingImage: "正在发送图片...",
+            connectionSuccess: "连接成功",
+            connectionFailed: "连接失败",
+            connectionDisconnected: "连接断开",
+            trust: [
+                { title: "端到端直连", desc: "WebRTC 点对点，文件不落地第三方" },
+                { title: "无大小限制", desc: "速度取决于双方网络，而非云端配额" },
+                { title: "零安装", desc: "打开链接即可用，跨设备浏览器" },
+            ],
+            signaling: {
+                notReady: "连接未就绪，请等待 P2P 建立后再操作",
+                p2pFailed: "P2P 连接失败，请重试",
+                startFailed: "无法发起连接",
+                transferLost: "文件传输中断，连接已断开",
+                acceptFailed: "接受连接失败",
+                peerDisconnected: "对方已断开连接",
+                rejected: "对方拒绝了连接请求",
+                error: "信令错误",
+                targetNotFound: "对方不在线或 UID 不正确",
+            },
+        },
         language: "语言",
     },
     en: {
         title: "WebDrop",
-        subtitle: "Secure P2P file transfer & real-time chat",
+        subtitle: "P2P file transfer and chat in the browser. Nothing stored on our servers.",
         features: {
             privacy: "🔒 Privacy & Security",
             privacyDesc: "End-to-end encryption",
@@ -230,7 +334,7 @@ export const translations: Record<string, Translations> = {
         connectToPeer: {
             title: "Connect to Peer",
             description: "Enter the other party's UID to establish P2P connection",
-            placeholder: "Enter peer's UID (e.g., ABC123)",
+            placeholder: "6-character code",
             connect: "Connect",
             disconnect: "Disconnect",
             waiting: "Waiting for connection...",
@@ -288,11 +392,65 @@ export const translations: Record<string, Translations> = {
             accept: "Accept",
             reject: "Reject",
         },
+        qrScanner: {
+            title: "Scan QR Code",
+            description: "Point your camera at the QR code to scan",
+            cameraDenied: "Camera permission denied. Please allow camera access.",
+            cameraNotFound: "No camera device found",
+            cameraFailed: "Camera access failed. Check permission settings.",
+            browserNotSupported: "Your browser does not support camera access",
+            httpsRequiredMobile: "HTTPS is required for camera access on mobile. Use an HTTPS link.",
+            httpsRequired: "HTTPS is required for camera access",
+            permissionHintMobile: "Camera permission is required to scan (use HTTPS on mobile)",
+            permissionHint: "Camera permission is required to scan",
+            clickToStart: "Tap to start scanning",
+            requestPermission: "Request permission",
+            startScan: "Start scanning",
+            stopScan: "Stop scanning",
+            close: "Close",
+            deviceNotSupported: "Your device does not support camera access",
+            cameraInUse: "Camera is in use by another app",
+            cameraError: "Camera access failed: {message}",
+        },
         footer: {
             allRightsReserved: "All rights reserved",
             privacyPolicy: "Privacy Policy",
             termsOfService: "Terms of Service",
             copyright: "Copyright",
+        },
+        workspace: {
+            copy: "Copy",
+            trustTitle: "Why trust WebDrop",
+            chatTitle: "Transfer & chat",
+            step1: "Step 1",
+            step2: "Step 2",
+            peerConnected: "Connected to",
+            ws: "Signaling",
+            rtc: "P2P",
+            chatEmpty: "Messages and files appear here once connected",
+            navHome: "Home",
+            navBlog: "Blog",
+            toastCopied: "Code copied",
+            sendingImage: "Sending image...",
+            connectionSuccess: "Connection successful",
+            connectionFailed: "Connection failed",
+            connectionDisconnected: "Connection disconnected",
+            trust: [
+                { title: "Direct P2P", desc: "WebRTC peer-to-peer, no third-party file storage" },
+                { title: "No size cap", desc: "Speed follows your network, not cloud quotas" },
+                { title: "No install", desc: "Open a link in any modern browser" },
+            ],
+            signaling: {
+                notReady: "Connection not ready. Wait until P2P is connected.",
+                p2pFailed: "P2P connection failed. Try reconnecting.",
+                startFailed: "Failed to start connection.",
+                transferLost: "File transfer interrupted — connection lost.",
+                acceptFailed: "Failed to accept connection.",
+                peerDisconnected: "Peer disconnected.",
+                rejected: "Connection request was rejected.",
+                error: "Signaling error",
+                targetNotFound: "Peer is offline or UID is incorrect.",
+            },
         },
         language: "Language",
     },
@@ -390,11 +548,65 @@ export const translations: Record<string, Translations> = {
             accept: "Aceptar",
             reject: "Rechazar",
         },
+        qrScanner: {
+            title: "Escanear código QR",
+            description: "Apunta la cámara al código QR para escanear",
+            cameraDenied: "Permiso de cámara denegado. Permite el acceso a la cámara.",
+            cameraNotFound: "No se encontró ninguna cámara",
+            cameraFailed: "Error al acceder a la cámara. Revisa los permisos.",
+            browserNotSupported: "Tu navegador no admite acceso a la cámara",
+            httpsRequiredMobile: "Se requiere HTTPS para usar la cámara en móvil. Usa un enlace HTTPS.",
+            httpsRequired: "Se requiere HTTPS para acceder a la cámara",
+            permissionHintMobile: "Se necesita permiso de cámara para escanear (usa HTTPS en móvil)",
+            permissionHint: "Se necesita permiso de cámara para escanear",
+            clickToStart: "Toca para empezar a escanear",
+            requestPermission: "Solicitar permiso",
+            startScan: "Empezar escaneo",
+            stopScan: "Detener escaneo",
+            close: "Cerrar",
+            deviceNotSupported: "Tu dispositivo no admite acceso a la cámara",
+            cameraInUse: "La cámara está en uso por otra aplicación",
+            cameraError: "Error de cámara: {message}",
+        },
         footer: {
             allRightsReserved: "Todos los derechos reservados",
             privacyPolicy: "Política de Privacidad",
             termsOfService: "Términos de Servicio",
             copyright: "Derechos de Autor",
+        },
+        workspace: {
+            copy: "Copiar",
+            trustTitle: "Por qué confiar",
+            chatTitle: "Transferir y chatear",
+            step1: "Paso 1",
+            step2: "Paso 2",
+            peerConnected: "Conectado a",
+            ws: "Señal",
+            rtc: "P2P",
+            chatEmpty: "Los mensajes y archivos aparecerán aquí al conectar",
+            navHome: "Inicio",
+            navBlog: "Blog",
+            toastCopied: "Código copiado",
+            sendingImage: "Enviando imagen...",
+            connectionSuccess: "Conexión exitosa",
+            connectionFailed: "Conexión fallida",
+            connectionDisconnected: "Conexión desconectada",
+            trust: [
+                { title: "P2P directo", desc: "WebRTC punto a punto, sin almacenamiento en terceros" },
+                { title: "Sin límite de tamaño", desc: "La velocidad depende de tu red, no de cuotas en la nube" },
+                { title: "Sin instalación", desc: "Abre un enlace en cualquier navegador moderno" },
+            ],
+            signaling: {
+                notReady: "Conexión no lista. Espera a que se establezca el P2P.",
+                p2pFailed: "Falló la conexión P2P. Intenta de nuevo.",
+                startFailed: "No se pudo iniciar la conexión.",
+                transferLost: "Transferencia interrumpida — conexión perdida.",
+                acceptFailed: "No se pudo aceptar la conexión.",
+                peerDisconnected: "El otro usuario se desconectó.",
+                rejected: "La solicitud de conexión fue rechazada.",
+                error: "Error de señalización",
+                targetNotFound: "El usuario no está en línea o el UID es incorrecto.",
+            },
         },
         language: "Idioma",
     },
@@ -492,11 +704,65 @@ export const translations: Record<string, Translations> = {
             accept: "Принять",
             reject: "Отклонить",
         },
+        qrScanner: {
+            title: "Сканировать QR-код",
+            description: "Наведите камеру на QR-код для сканирования",
+            cameraDenied: "Доступ к камере запрещён. Разрешите использование камеры.",
+            cameraNotFound: "Камера не найдена",
+            cameraFailed: "Не удалось получить доступ к камере. Проверьте разрешения.",
+            browserNotSupported: "Ваш браузер не поддерживает доступ к камере",
+            httpsRequiredMobile: "Для камеры на мобильном нужен HTTPS. Используйте HTTPS-ссылку.",
+            httpsRequired: "Для доступа к камере требуется HTTPS",
+            permissionHintMobile: "Для сканирования нужен доступ к камере (на мобильном — HTTPS)",
+            permissionHint: "Для сканирования нужен доступ к камере",
+            clickToStart: "Нажмите, чтобы начать сканирование",
+            requestPermission: "Запросить разрешение",
+            startScan: "Начать сканирование",
+            stopScan: "Остановить сканирование",
+            close: "Закрыть",
+            deviceNotSupported: "Ваше устройство не поддерживает доступ к камере",
+            cameraInUse: "Камера используется другим приложением",
+            cameraError: "Ошибка камеры: {message}",
+        },
         footer: {
             allRightsReserved: "Все права защищены",
             privacyPolicy: "Политика конфиденциальности",
             termsOfService: "Условия использования",
             copyright: "Авторские права",
+        },
+        workspace: {
+            copy: "Копировать",
+            trustTitle: "Почему нам доверяют",
+            chatTitle: "Передача и чат",
+            step1: "Шаг 1",
+            step2: "Шаг 2",
+            peerConnected: "Подключено к",
+            ws: "Сигнал",
+            rtc: "P2P",
+            chatEmpty: "Сообщения и файлы появятся здесь после подключения",
+            navHome: "Главная",
+            navBlog: "Блог",
+            toastCopied: "Код скопирован",
+            sendingImage: "Отправка изображения...",
+            connectionSuccess: "Подключено",
+            connectionFailed: "Ошибка подключения",
+            connectionDisconnected: "Отключено",
+            trust: [
+                { title: "Прямой P2P", desc: "WebRTC напрямую, без хранения на сторонних серверах" },
+                { title: "Без лимита размера", desc: "Скорость зависит от вашей сети, а не от облачных квот" },
+                { title: "Без установки", desc: "Откройте ссылку в любом современном браузере" },
+            ],
+            signaling: {
+                notReady: "Соединение не готово. Дождитесь установки P2P.",
+                p2pFailed: "P2P-соединение не удалось. Попробуйте снова.",
+                startFailed: "Не удалось начать подключение.",
+                transferLost: "Передача прервана — соединение потеряно.",
+                acceptFailed: "Не удалось принять подключение.",
+                peerDisconnected: "Собеседник отключился.",
+                rejected: "Запрос на подключение отклонён.",
+                error: "Ошибка сигнализации",
+                targetNotFound: "Пользователь не в сети или неверный UID.",
+            },
         },
         language: "Язык",
     },
